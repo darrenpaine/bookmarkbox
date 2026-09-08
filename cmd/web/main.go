@@ -75,10 +75,16 @@ func main() {
 		sessionManager: sessionManager,
 	}
 
+	protection := http.NewCrossOriginProtection()
+	// Can add allowed origins, for example:
+	// protection.AddTrustedOrigin("https://app.example.com")
+	// protection.AddTrustedOrigin("https://*.example.com")
+	// protection.AddTrustedOrigin("http://localhost:3000")
+
 	tlsConfig := &tls.Config{}
 	srv := &http.Server{
 		Addr:      *addr,
-		Handler:   app.router,
+		Handler:   protection.Handler(app.router),
 		ErrorLog:  errorLog,
 		TLSConfig: tlsConfig,
 		// Add Idle, Read and Write timeouts to the server.
@@ -90,6 +96,7 @@ func main() {
 	app.infoLog.Printf("Starting server on %s", *addr)
 	// Create TLS certificates to be used here
 	// Otherwise, use HTTP with: err = srv.ListenAndServe()
+
 	err = srv.ListenAndServeTLS("./tls/cert.pem", "./tls/key.pem")
 
 	app.errorLog.Fatal(err)
