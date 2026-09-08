@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 )
@@ -54,6 +55,31 @@ func (app *application) requireAuthentication(next http.Handler) http.Handler {
 		// other intermediary cache).
 		w.Header().Add("Cache-Control", "no-store")
 		// And call the next handler in the chain.
+		next.ServeHTTP(w, r)
+	})
+}
+
+// Add authentication status to the context
+func (app *application) authenticate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Get the authenticated user id, or 0 means no user authenticated
+		id := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
+		if id == 0 {
+			next.ServeHTTP(w, r)
+			return
+		}
+		// Is that user still on the system?
+		exists, err := app.users.Exists(id)
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+		// If so, add the flag to the context
+		if exists {
+			ctx := context.WithValue(r.Context(), isAuthenticatedContextKey, true)
+			r = r.WithContext(ctx)
+		}
+		// Call the next handler in the chain.
 		next.ServeHTTP(w, r)
 	})
 }

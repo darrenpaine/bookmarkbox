@@ -18,6 +18,7 @@ func (app *application) routes() http.Handler {
 	// Unprotected routes - not requiring log in
 	app.router.Group(func(group_router chi.Router) {
 		group_router.Use(app.sessionManager.LoadAndSave)
+		group_router.Use(app.authenticate)
 		group_router.Get("/", app.home)
 		group_router.Get("/snippet/view/{id}", app.snippetView)
 		group_router.Get("/user/signup", app.userSignupShowForm)
@@ -29,6 +30,7 @@ func (app *application) routes() http.Handler {
 	// Protected routes - that need a user logged in
 	app.router.Group(func(group_router chi.Router) {
 		group_router.Use(app.sessionManager.LoadAndSave)
+		group_router.Use(app.authenticate)
 		group_router.Use(app.requireAuthentication)
 		group_router.Get("/snippet/create", app.snippetCreateShowForm)
 		group_router.Post("/snippet/create", app.snippetCreatePost)
