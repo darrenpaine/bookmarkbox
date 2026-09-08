@@ -15,12 +15,24 @@ func (app *application) routes() http.Handler {
 	fs := http.FileServer(http.Dir("./ui/static"))
 	app.router.Handle("/static/*", http.StripPrefix("/static/", fs))
 
+	// Unprotected routes - not requiring log in
 	app.router.Group(func(group_router chi.Router) {
 		group_router.Use(app.sessionManager.LoadAndSave)
 		group_router.Get("/", app.home)
 		group_router.Get("/snippet/view/{id}", app.snippetView)
+		group_router.Get("/user/signup", app.userSignupShowForm)
+		group_router.Post("/user/signup", app.userSignupPost)
+		group_router.Get("/user/login", app.userLoginShowForm)
+		group_router.Post("/user/login", app.userLoginPost)
+	})
+
+	// Protected routes - that need a user logged in
+	app.router.Group(func(group_router chi.Router) {
+		group_router.Use(app.sessionManager.LoadAndSave)
+		group_router.Use(app.requireAuthentication)
 		group_router.Get("/snippet/create", app.snippetCreateShowForm)
 		group_router.Post("/snippet/create", app.snippetCreatePost)
+		group_router.Post("/user/logout", app.userLogoutPost)
 	})
 
 	app.router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

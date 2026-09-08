@@ -6,40 +6,40 @@
         <label>Title:</label>
         <!-- Use the `with` action to render the value of .Form.FieldErrors.title
 if it is not empty. -->
-        {{with .CreateForm.FieldErrors.title}}
+        {{with .Form.FieldErrors.title}}
         <label class='error'>{{.}}</label>
         {{end}}
         <!-- Re-populate the title data by setting the `value` attribute. -->
-        <input type='text' name='title' value='{{.CreateForm.Title}}'>
+        <input type='text' name='title' value='{{.Form.Title}}'>
     </div>
     <div>
         <label>Content:</label>
-        <!-- Likewise render the value of .CreateForm.FieldErrors.content if it is not
+        <!-- Likewise render the value of .Form.FieldErrors.content if it is not
 empty. -->
-        {{with .CreateForm.FieldErrors.content}}
+        {{with .Form.FieldErrors.content}}
         <label class='error'>{{.}}</label>
         {{end}}
         <!-- Re-populate the content data as the inner HTML of the textarea. -->
-        <textarea name='content'>{{.CreateForm.Content}}</textarea>
+        <textarea name='content'>{{.Form.Content}}</textarea>
     </div>
     <div>
         <label>Delete in:</label>
-        <!-- And render the value of .CreateForm.FieldErrors.expires if it is not empty. -->
-        {{with .CreateForm.FieldErrors.expires}}
+        <!-- And render the value of .Form.FieldErrors.expires if it is not empty. -->
+        {{with .Form.FieldErrors.expires}}
         <label class='error'>{{.}}</label>
         {{end}}
         <!-- Here we use the `if` action to check if the value of the re-populated
 expires field equals 365. If it does, then we render the `checked`
 attribute so that the radio input is re-selected. -->
         <input type='radio' name='expires' value='365' {{if (eq
-            .CreateForm.Expires
+            .Form.Expires
             365)}}checked{{end}}> One Year
         <!-- And we do the same for the other possible values too... -->
         <input type='radio' name='expires' value='7' {{if (eq
-            .CreateForm.Expires
+            .Form.Expires
             7)}}checked{{end}}> One Week
         <input type='radio' name='expires' value='1' {{if (eq
-            .CreateForm.Expires
+            .Form.Expires
             1)}}checked{{end}}> One Day
     </div>
     <div>
