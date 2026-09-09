@@ -23,10 +23,12 @@ type templateData struct {
 	IsAuthenticated bool // Has an authenticated ID
 }
 
-// Create a humanDate function which returns a nicely formatted string
-// representation of a time.Time object.
+// humanDate() gives a nice time/date format - UTC, or blank for unset time.
 func humanDate(t time.Time) string {
-	return t.Format("02 Jan 2006 at 15:04")
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format("02 Jan 2006 at 15:04")
 }
 
 // Initialize a template.FuncMap object and store it in a global variable. This is
