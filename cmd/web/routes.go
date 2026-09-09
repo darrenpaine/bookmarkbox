@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"snippetbox.darrenpaine.com/ui"
 )
 
 // The routes() method returns a servemux containing our application routes.
@@ -12,8 +13,8 @@ func (app *application) routes() http.Handler {
 	app.router.Use(app.logRequest)
 	app.router.Use(app.recoverPanic)
 
-	fs := http.FileServer(http.Dir("./ui/static"))
-	app.router.Handle("/static/*", http.StripPrefix("/static/", fs))
+	fs := http.FileServer(http.FS(ui.Files))
+	app.router.Handle("/static/*", fs)
 
 	// Unprotected routes - not requiring log in
 	app.router.Group(func(group_router chi.Router) {
