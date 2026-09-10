@@ -104,11 +104,7 @@ func (ts *testServer) postForm(t *testing.T, urlPath string, form url.Values) (i
 	return rs.StatusCode, rs.Header, string(body)
 }
 func (ts *testServer) postFormCrossOrigin(t *testing.T, urlPath string, form url.Values) (int, http.Header, string) {
-	m := make(map[string]string, len(form))
-	for k, v := range form {
-		m[k] = v[0]
-	}
-	form_json, err_json := json.Marshal(m)
+	form_json, err_json := json.Marshal(form)
 	if err_json != nil {
 		log.Fatal(err_json)
 	}
@@ -124,7 +120,6 @@ func (ts *testServer) postFormCrossOrigin(t *testing.T, urlPath string, form url
 	if err1 != nil {
 		t.Fatal(err1)
 	}
-	// Read the response body from the test server.
 	defer resp.Body.Close()
 	resp_body, err2 := io.ReadAll(resp.Body)
 	if err2 != nil {
