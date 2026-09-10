@@ -21,6 +21,7 @@ type templateData struct {
 	Form            any
 	Flash           string
 	IsAuthenticated bool // Has an authenticated ID
+	User            *models.User
 }
 
 // humanDate() gives a nice time/date format - UTC, or blank for unset time.

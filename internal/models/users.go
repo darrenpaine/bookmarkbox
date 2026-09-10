@@ -15,6 +15,7 @@ type UserModelInterface interface {
 	Insert(name, email, password string) error
 	Authenticate(email, password string) (int, error)
 	Exists(id int) (bool, error)
+	Get(id int) (*User, error)
 }
 
 // User type aligned with the database "users" table.
@@ -89,4 +90,23 @@ func (m *UserModel) Exists(id int) (bool, error) {
 	stmt := "SELECT EXISTS(SELECT true FROM users WHERE id = ?)"
 	err := m.DB.QueryRow(stmt, id).Scan(&exists)
 	return exists, err
+}
+
+// Get user details for a given ID
+func (m *UserModel) Get(id int) (*User, error) {
+	var (
+		name    string
+		email   string
+		created time.Time
+	)
+	stmt := "SELECT name, email, created FROM users WHERE id = ?"
+	err := m.DB.QueryRow(stmt, id).Scan(&name, &email, &created)
+	if err != nil {
+		return &User{}, ErrNoRecord
+	}
+	return &User{
+		Name:    name,
+		Email:   email,
+		Created: created,
+	}, nil
 }

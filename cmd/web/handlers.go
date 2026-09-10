@@ -50,6 +50,12 @@ func (app *application) home(w http.ResponseWriter, r *http.Request) {
 	app.render(w, http.StatusOK, "home.tmpl", data)
 }
 
+// Render the About page
+func (app *application) about(w http.ResponseWriter, r *http.Request) {
+	data := app.newTemplateData(r)
+	app.render(w, http.StatusOK, "about.tmpl", data)
+}
+
 // Render the view on a snippet
 func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 	idvalue := chi.URLParam(r, "id")
@@ -245,4 +251,22 @@ func (app *application) userLogoutPost(w http.ResponseWriter, r *http.Request) {
 // Ping the server
 func (app *application) ping(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
+}
+
+// Ping the server
+func (app *application) userAccountView(w http.ResponseWriter, r *http.Request) {
+	id := app.sessionManager.Get(r.Context(), "authenticatedUserID")
+	user_id := id.(int)
+	user, err := app.users.Get(int(user_id))
+	if err != nil {
+		if errors.Is(err, models.ErrNoRecord) {
+			http.Redirect(w, r, "/user/login", http.StatusSeeOther)
+		} else {
+			app.serverError(w, err)
+		}
+	}
+
+	data := app.newTemplateData(r)
+	data.User = user
+	app.render(w, http.StatusOK, "account.tmpl", data)
 }

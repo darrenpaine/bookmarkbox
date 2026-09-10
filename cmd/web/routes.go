@@ -22,6 +22,7 @@ func (app *application) routes() http.Handler {
 		group_router.Use(app.sessionManager.LoadAndSave)
 		group_router.Use(app.authenticate)
 		group_router.Get("/", app.home)
+		group_router.Get("/about", app.about)
 		group_router.Get("/snippet/view/{id}", app.snippetView)
 		group_router.Get("/user/signup", app.userSignupShowForm)
 		group_router.Post("/user/signup", app.userSignupPost)
@@ -37,6 +38,7 @@ func (app *application) routes() http.Handler {
 		group_router.Get("/snippet/create", app.snippetCreateShowForm)
 		group_router.Post("/snippet/create", app.snippetCreatePost)
 		group_router.Post("/user/logout", app.userLogoutPost)
+		group_router.Get("/account/view", app.userAccountView)
 	})
 
 	app.router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

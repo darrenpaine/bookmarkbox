@@ -32,6 +32,7 @@ type application struct {
 	router         *chi.Mux
 	formDecoder    *form.Decoder
 	sessionManager *scs.SessionManager
+	debug          bool
 }
 
 func main() {
@@ -40,6 +41,7 @@ func main() {
 	// Set up user and pass here to match database credentials if using automatically
 	addr := flag.String("addr", ":4000", "HTTP network address")
 	dsn := flag.String("dsn", "user:pass@/snippetbox?parseTime=true", "MySQL data source name")
+	verbose := flag.Bool("debug", false, "Flag to produce verbose debug messages")
 	flag.Parse()
 
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
@@ -73,6 +75,7 @@ func main() {
 		router:         chi.NewRouter(),
 		formDecoder:    form.NewDecoder(),
 		sessionManager: sessionManager,
+		debug:          *verbose,
 	}
 
 	protection := http.NewCrossOriginProtection()
