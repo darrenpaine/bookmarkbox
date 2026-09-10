@@ -226,8 +226,12 @@ func (app *application) userLoginPost(w http.ResponseWriter, r *http.Request) {
 	// 'logged in'.
 	app.sessionManager.Put(r.Context(), "authenticatedUserID", id)
 	app.sessionManager.Put(r.Context(), "flash", "You've been logged in successfully!")
+	target := app.sessionManager.PopString(r.Context(), "target")
+	if target == "" {
+		target = "/"
+	}
 	// Redirect the user to the home page.
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	http.Redirect(w, r, target, http.StatusSeeOther)
 }
 
 // Log the user out
