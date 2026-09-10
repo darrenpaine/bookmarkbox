@@ -18,8 +18,7 @@ import (
 	"snippetbox.darrenpaine.com/internal/models/mocks"
 )
 
-// Create a newTestApplication helper which returns an instance of our
-// application struct containing mocked dependencies.
+// Helper - application struct with mocked dependencies.
 func newTestApplication(t *testing.T) *application {
 	templateCache, err := newTemplateCache()
 	if err != nil {
@@ -46,7 +45,7 @@ func newTestApplication(t *testing.T) *application {
 	}
 }
 
-// Define a custom testServer type which embeds a httptest.Server instance.
+// Custom testServer type which embeds a httptest.Server instance.
 type testServer struct {
 	*httptest.Server
 }
@@ -103,6 +102,8 @@ func (ts *testServer) postForm(t *testing.T, urlPath string, form url.Values) (i
 	// Return the response status, headers and body.
 	return rs.StatusCode, rs.Header, string(body)
 }
+
+// Help to test for denial of CSRF POST requests
 func (ts *testServer) postFormCrossOrigin(t *testing.T, urlPath string, form url.Values) (int, http.Header, string) {
 	form_json, err_json := json.Marshal(form)
 	if err_json != nil {

@@ -222,3 +222,36 @@ func TestUserSignup(t *testing.T) {
 		})
 	}
 }
+
+// Test for Snippet Create
+func TestSnippetCreate(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+
+	const (
+		validName     = "Alice"
+		validPassword = "pa$$word"
+		validEmail    = "alice@example.com"
+	)
+
+	t.Run("Unauthenticated", func(t *testing.T) {
+		code, header, _ := ts.get(t, "/snippet/create")
+		// Is it OK, "OK"?
+		assert.Equal(t, code, http.StatusSeeOther)
+		assert.StringContains(t, header.Get("Location"), "/user/login")
+	})
+
+	t.Run("Authenticated", func(t *testing.T) {
+
+		login_form := url.Values{}
+		login_form.Add("email", validEmail)
+		login_form.Add("password", validPassword)
+		ts.postForm(t, "/user/login", login_form)
+
+		code, _, body := ts.get(t, "/snippet/create")
+		// Is it showing the form?
+		assert.Equal(t, code, http.StatusOK)
+		assert.StringContains(t, body, "<form action='/snippet/create' method='POST'>")
+	})
+}
