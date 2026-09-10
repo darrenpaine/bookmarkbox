@@ -26,8 +26,8 @@ import (
 type application struct {
 	errorLog       *log.Logger
 	infoLog        *log.Logger
-	snippets       *models.SnippetModel
-	users          *models.UserModel
+	snippets       models.SnippetModelInterface
+	users          models.UserModelInterface
 	templateCache  map[string]*template.Template
 	router         *chi.Mux
 	formDecoder    *form.Decoder
@@ -80,6 +80,8 @@ func main() {
 	// protection.AddTrustedOrigin("https://app.example.com")
 	// protection.AddTrustedOrigin("https://*.example.com")
 	// protection.AddTrustedOrigin("http://localhost:3000")
+	// Or bypass for public APIs or webhooks:
+	// protection.AddInsecureBypassPattern("/api/webhook/")
 
 	tlsConfig := &tls.Config{}
 	srv := &http.Server{

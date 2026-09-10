@@ -15,6 +15,7 @@ func (app *application) routes() http.Handler {
 
 	fs := http.FileServer(http.FS(ui.Files))
 	app.router.Handle("/static/*", fs)
+	app.router.Get("/ping", app.ping) // no session/user
 
 	// Unprotected routes - not requiring log in
 	app.router.Group(func(group_router chi.Router) {

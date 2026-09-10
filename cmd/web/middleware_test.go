@@ -48,3 +48,23 @@ func TestSecureHeaders(t *testing.T) {
 	bytes.TrimSpace(body)
 	assert.Equal(t, string(body), content)
 }
+
+// Check CSRF protection on Get methods
+func TestCsrfGet(t *testing.T) {
+	protection := http.NewCrossOriginProtection()
+	handler := protection.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Even a cross-site GET passes through
+	req := httptest.NewRequest("GET", "/form", nil)
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	req.Header.Set("Origin", "https://evil.com")
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("GET should always be allowed, got %d", rec.Code)
+	}
+}

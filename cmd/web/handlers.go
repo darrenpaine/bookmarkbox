@@ -243,6 +243,6 @@ func (app *application) userLogoutPost(w http.ResponseWriter, r *http.Request) {
 }
 
 // Ping the server
-func ping(w http.ResponseWriter, _ *http.Request) {
+func (app *application) ping(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
 }
