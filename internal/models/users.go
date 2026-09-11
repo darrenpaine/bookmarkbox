@@ -16,10 +16,12 @@ type UserModelInterface interface {
 	Authenticate(email, password string) (int, error)
 	Exists(id int) (bool, error)
 	Get(id int) (*User, error)
+	PasswordUpdate(id int, currentPassword, newPassword string) error
 }
 
 // User type aligned with the database "users" table.
 type User struct {
+	UserModelInterface
 	ID             int
 	Name           string
 	Email          string
@@ -109,4 +111,37 @@ func (m *UserModel) Get(id int) (*User, error) {
 		Email:   email,
 		Created: created,
 	}, nil
+}
+
+// Check current and new and update the user password
+func (m *UserModel) PasswordUpdate(id int, currentPassword, newPassword string) error {
+	var (
+		current_hashed_password string
+	)
+	stmt := "SELECT hashed_password FROM users WHERE id = ?"
+	err := m.DB.QueryRow(stmt, id).Scan(&current_hashed_password)
+	if err != nil {
+		return ErrNoRecord
+	}
+	// Check whether the hashed password and plain-text password provided match. // If they don't, we return the ErrInvalidCredentials error.
+	err = bcrypt.CompareHashAndPassword([]byte(current_hashed_password), []byte(currentPassword))
+	if err != nil {
+		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
+			return ErrInvalidCredentials
+		} else {
+			return err
+		}
+	}
+
+	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), 12)
+	if err != nil {
+		return err
+	}
+	stmt = `UPDATE users SET hashed_password = ? WHERE id = ?`
+	_, err = m.DB.Exec(stmt, string(newHash), id)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

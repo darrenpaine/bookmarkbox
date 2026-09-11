@@ -39,6 +39,8 @@ func (app *application) routes() http.Handler {
 		group_router.Post("/snippet/create", app.snippetCreatePost)
 		group_router.Post("/user/logout", app.userLogoutPost)
 		group_router.Get("/account/view", app.userAccountView)
+		group_router.Get("/account/password/update", app.userPasswordShowForm)
+		group_router.Post("/account/password/update", app.userPasswordPost)
 	})
 
 	app.router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

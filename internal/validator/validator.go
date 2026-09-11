@@ -78,3 +78,8 @@ func PermittedValue[T comparable](value T, permittedValues ...T) bool {
 	// }
 	// return false
 }
+
+// Equal() returns true if the two values are the same.
+func Equal[T comparable](first, second T) bool {
+	return first == second
+}

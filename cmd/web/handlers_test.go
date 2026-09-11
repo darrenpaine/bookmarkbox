@@ -107,9 +107,9 @@ func TestUserSignup(t *testing.T) {
 	defer ts.Close()
 
 	const (
-		validName     = "Bob"
-		validPassword = "validPa$$word"
-		validEmail    = "bob@example.com"
+		validName     = "Alice"
+		validPassword = "pa$$word"
+		validEmail    = "alice@example.com"
 		formTag       = "<form action='/user/signup' method='POST' novalidate>"
 	)
 	tests := []struct {
@@ -199,7 +199,7 @@ func TestUserSignup(t *testing.T) {
 		wantError    string
 	}{
 		{
-			name:         "Cross Origin Post",
+			name:         "Cross Origin Post Blocked",
 			userName:     validName,
 			userEmail:    validEmail,
 			userPassword: validPassword,
@@ -235,14 +235,14 @@ func TestSnippetCreate(t *testing.T) {
 		validEmail    = "alice@example.com"
 	)
 
-	t.Run("Unauthenticated", func(t *testing.T) {
+	t.Run("Unauthenticated has no access", func(t *testing.T) {
 		code, header, _ := ts.get(t, "/snippet/create")
 		// Is it OK, "OK"?
 		assert.Equal(t, code, http.StatusSeeOther)
 		assert.StringContains(t, header.Get("Location"), "/user/login")
 	})
 
-	t.Run("Authenticated", func(t *testing.T) {
+	t.Run("Authenticated has access", func(t *testing.T) {
 
 		login_form := url.Values{}
 		login_form.Add("email", validEmail)
@@ -254,4 +254,167 @@ func TestSnippetCreate(t *testing.T) {
 		assert.Equal(t, code, http.StatusOK)
 		assert.StringContains(t, body, "<form action='/snippet/create' method='POST'>")
 	})
+}
+
+// Test for Change User Password
+func TestUserChangePassword(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+
+	const (
+		validName     = "Alice"
+		validPassword = "pa$$word"
+		validEmail    = "alice@example.com"
+		validNewPass  = "pa$$word2"
+		formTag       = "<form action='/account/password/update' method='POST'>"
+	)
+
+	t.Run("Unauthenticated has no access", func(t *testing.T) {
+		code, header, _ := ts.get(t, "/account/password/update")
+		// Is it OK, "OK"?
+		assert.Equal(t, code, http.StatusSeeOther)
+		assert.StringContains(t, header.Get("Location"), "/user/login")
+	})
+
+	t.Run("Authenticated has access", func(t *testing.T) {
+
+		update_form := url.Values{}
+		update_form.Add("email", validEmail)
+		update_form.Add("password", validPassword)
+		ts.postForm(t, "/user/login", update_form)
+
+		code, _, body := ts.get(t, "/account/password/update")
+		// Is it showing the form?
+		assert.Equal(t, code, http.StatusOK)
+		assert.StringContains(t, body, "<form action='/account/password/update' method='POST'>")
+	})
+
+	csrf_tests := []struct {
+		name         string
+		userName     string
+		userEmail    string
+		userPassword string
+		wantCode     int
+		wantError    string
+	}{
+		{
+			name:         "Cross Origin Post Blocked",
+			userPassword: validPassword,
+			wantCode:     http.StatusForbidden,
+			wantError:    "cross-origin request detected from Sec-Fetch-Site header\n",
+		},
+	}
+
+	for _, tt := range csrf_tests {
+		t.Run(tt.name, func(t *testing.T) {
+			login_form := url.Values{}
+			login_form.Add("email", validEmail)
+			login_form.Add("password", validPassword)
+			ts.postForm(t, "/user/login", login_form)
+
+			form := url.Values{}
+			form.Add("old_password", validPassword)
+			form.Add("new_password", validPassword)
+			form.Add("confirm_password", validPassword)
+			code, _, body := ts.postFormCrossOrigin(t, "/account/password/update", form)
+			assert.Equal(t, code, tt.wantCode)
+			if tt.wantError != "" {
+				assert.StringContains(t, body, tt.wantError)
+			}
+		})
+	}
+
+	tests := []struct {
+		name            string
+		userName        string
+		userEmail       string
+		userPassword    string
+		userNewPass     string
+		userConfirmPass string
+		wantCode        int
+		wantFormTag     string
+	}{
+		{
+			name:            "Valid submission",
+			userName:        validName,
+			userEmail:       validEmail,
+			userPassword:    validPassword,
+			userNewPass:     validNewPass,
+			userConfirmPass: validNewPass,
+			wantCode:        http.StatusSeeOther,
+		},
+		{
+			name:            "Wrong password",
+			userName:        validName,
+			userEmail:       validEmail,
+			userPassword:    "pa$$",
+			userNewPass:     validNewPass,
+			userConfirmPass: validNewPass,
+			wantCode:        http.StatusUnprocessableEntity,
+		},
+		{
+			name:            "Empty old password",
+			userEmail:       validEmail,
+			userPassword:    "",
+			userNewPass:     validNewPass,
+			userConfirmPass: validNewPass,
+			wantCode:        http.StatusUnprocessableEntity,
+			wantFormTag:     formTag,
+		},
+		{
+			name:            "Empty new password",
+			userEmail:       validEmail,
+			userPassword:    validPassword,
+			userNewPass:     "",
+			userConfirmPass: validNewPass,
+			wantCode:        http.StatusUnprocessableEntity,
+			wantFormTag:     formTag,
+		},
+		{
+			name:            "Empty confirm password",
+			userEmail:       validEmail,
+			userPassword:    validPassword,
+			userNewPass:     validNewPass,
+			userConfirmPass: "",
+			wantCode:        http.StatusUnprocessableEntity,
+			wantFormTag:     formTag,
+		},
+		{
+			name:            "New passwords do not match",
+			userEmail:       validEmail,
+			userPassword:    validPassword,
+			userNewPass:     validNewPass,
+			userConfirmPass: validPassword,
+			wantCode:        http.StatusUnprocessableEntity,
+			wantFormTag:     formTag,
+		},
+		{
+			name:            "New password too short",
+			userEmail:       validEmail,
+			userPassword:    validPassword,
+			userNewPass:     "pa$$",
+			userConfirmPass: "pa$$",
+			wantCode:        http.StatusUnprocessableEntity,
+			wantFormTag:     formTag,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			login_form := url.Values{}
+			login_form.Add("email", validEmail)
+			login_form.Add("password", validPassword)
+			ts.postForm(t, "/user/login", login_form)
+
+			form := url.Values{}
+			form.Add("old_password", tt.userPassword)
+			form.Add("new_password", tt.userNewPass)
+			form.Add("confirm_password", tt.userConfirmPass)
+			code, _, body := ts.postForm(t, "/account/password/update", form)
+			assert.Equal(t, code, tt.wantCode)
+			if tt.wantFormTag != "" {
+				assert.StringContains(t, body, tt.wantFormTag)
+			}
+		})
+	}
 }

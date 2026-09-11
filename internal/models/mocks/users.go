@@ -31,3 +31,15 @@ func (m *UserModel) Exists(id int) (bool, error) {
 func (m *UserModel) Get(id int) (*models.User, error) {
 	return &models.User{}, nil
 }
+
+func (m *UserModel) PasswordUpdate(id int, currentPassword, newPassword string) error {
+	switch id {
+	case 1:
+		if currentPassword != "pa$$word" {
+			return models.ErrInvalidCredentials
+		}
+		return nil
+	default:
+		return models.ErrNoRecord
+	}
+}
