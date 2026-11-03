@@ -7,7 +7,7 @@ import (
 	"snippetbox.darrenpaine.com/ui"
 )
 
-// The routes() method returns a servemux containing our application routes.
+// The routes() method returns a servemux containing the application routes.
 func (app *application) routes() http.Handler {
 	app.router.Use(secureHeaders)
 	app.router.Use(app.logRequest)

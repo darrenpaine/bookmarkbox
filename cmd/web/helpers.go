@@ -12,13 +12,15 @@ import (
 )
 
 // The serverError helper writes a stack trace to the errorLog, and
-// then sends a generic 500 response.
+// then sends a generic 500 response (or the trace itself in debug mode).
 func (app *application) serverError(w http.ResponseWriter, err error) {
 	trace := fmt.Sprintf("%s\n%s", err.Error(), debug.Stack())
 	app.errorLog.Output(2, trace)
 	if app.debug {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		http.Error(w, trace, http.StatusInternalServerError)
+		return
 	}
+	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
 
 // Helper to send back error responses.

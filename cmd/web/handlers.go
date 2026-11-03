@@ -44,10 +44,6 @@ type userChangePasswordForm struct {
 
 // Render the Home page
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
 	snippets, err := app.snippets.Latest()
 	if err != nil {
 		app.serverError(w, err)
@@ -267,14 +263,15 @@ func (app *application) ping(w http.ResponseWriter, _ *http.Request) {
 
 // View account /account/view
 func (app *application) userAccountView(w http.ResponseWriter, r *http.Request) {
-	user_id := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
-	user, err := app.users.Get(int(user_id))
+	userID := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
+	user, err := app.users.Get(int(userID))
 	if err != nil {
 		if errors.Is(err, models.ErrNoRecord) {
 			http.Redirect(w, r, "/user/login", http.StatusSeeOther)
 		} else {
 			app.serverError(w, err)
 		}
+		return
 	}
 
 	data := app.newTemplateData(r)
@@ -284,14 +281,15 @@ func (app *application) userAccountView(w http.ResponseWriter, r *http.Request) 
 
 // Change password form
 func (app *application) userPasswordShowForm(w http.ResponseWriter, r *http.Request) {
-	user_id := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
-	user, err := app.users.Get(int(user_id))
+	userID := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
+	user, err := app.users.Get(int(userID))
 	if err != nil {
 		if errors.Is(err, models.ErrNoRecord) {
 			http.Redirect(w, r, "/user/login", http.StatusSeeOther)
 		} else {
 			app.serverError(w, err)
 		}
+		return
 	}
 
 	data := app.newTemplateData(r)

@@ -19,10 +19,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 )
 
-// Define an application struct to hold the application-wide dependencies for the
-// web application. For now we'll only include fields for the two custom loggers, but
-// we'll add more to it as the build progresses.
-
+// The application struct holds application-wide dependencies for the web application.
 type application struct {
 	errorLog       *log.Logger
 	infoLog        *log.Logger
@@ -36,12 +33,12 @@ type application struct {
 }
 
 func main() {
-
 	// Define and parse command line options -addr and -dsn
 	// Set up user and pass here to match database credentials if using automatically
 	addr := flag.String("addr", ":4000", "HTTP network address")
 	dsn := flag.String("dsn", "user:pass@/snippetbox?parseTime=true", "MySQL data source name")
 	verbose := flag.Bool("debug", false, "Flag to produce verbose debug messages")
+	https := flag.Bool("https", false, "Flag to use TLS/https")
 	flag.Parse()
 
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
@@ -63,7 +60,7 @@ func main() {
 	sessionManager := scs.New()
 	sessionManager.Store = mysqlstore.New(db)
 	sessionManager.Lifetime = 12 * time.Hour
-	sessionManager.Cookie.Secure = true
+	sessionManager.Cookie.Secure = *https
 	sessionManager.Cookie.SameSite = http.SameSiteStrictMode
 
 	app := &application{
@@ -88,22 +85,22 @@ func main() {
 
 	tlsConfig := &tls.Config{}
 	srv := &http.Server{
-		Addr:      *addr,
-		Handler:   protection.Handler(app.router),
-		ErrorLog:  errorLog,
-		TLSConfig: tlsConfig,
-		// Add Idle, Read and Write timeouts to the server.
+		Addr:         *addr,
+		Handler:      protection.Handler(app.router),
+		ErrorLog:     errorLog,
+		TLSConfig:    tlsConfig,
 		IdleTimeout:  time.Minute, // prevent slowloris-style attacks
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
 	app.routes()
 	app.infoLog.Printf("Starting server on %s", *addr)
-	// Create TLS certificates to be used here
-	// Otherwise, use HTTP with: err = srv.ListenAndServe()
-
-	err = srv.ListenAndServeTLS("./tls/cert.pem", "./tls/key.pem")
-
+	// TLS certificates (secret) - from Let's Encrypt
+	if *https {
+		err = srv.ListenAndServeTLS("./tls/cert.pem", "./tls/key.pem")
+	} else {
+		err = srv.ListenAndServe()
+	}
 	app.errorLog.Fatal(err)
 }
 

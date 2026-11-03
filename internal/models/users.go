@@ -116,15 +116,15 @@ func (m *UserModel) Get(id int) (*User, error) {
 // Check current and new and update the user password
 func (m *UserModel) PasswordUpdate(id int, currentPassword, newPassword string) error {
 	var (
-		current_hashed_password string
+		currentHash string
 	)
 	stmt := "SELECT hashed_password FROM users WHERE id = ?"
-	err := m.DB.QueryRow(stmt, id).Scan(&current_hashed_password)
+	err := m.DB.QueryRow(stmt, id).Scan(&currentHash)
 	if err != nil {
 		return ErrNoRecord
 	}
 	// Check whether the hashed password and plain-text password provided match. // If they don't, we return the ErrInvalidCredentials error.
-	err = bcrypt.CompareHashAndPassword([]byte(current_hashed_password), []byte(currentPassword))
+	err = bcrypt.CompareHashAndPassword([]byte(currentHash), []byte(currentPassword))
 	if err != nil {
 		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 			return ErrInvalidCredentials
