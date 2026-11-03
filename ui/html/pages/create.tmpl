@@ -21,16 +21,9 @@
         {{with .Form.FieldErrors.expires}}
         <label class='error'>{{.}}</label>
         {{end}}
-        <input type='radio' name='expires' value='365' {{if (eq
-            .Form.Expires
-            365)}}checked{{end}}> One Year
-        <!-- And we do the same for the other possible values too... -->
-        <input type='radio' name='expires' value='7' {{if (eq
-            .Form.Expires
-            7)}}checked{{end}}> One Week
-        <input type='radio' name='expires' value='1' {{if (eq
-            .Form.Expires
-            1)}}checked{{end}}> One Day
+        <label class='choice'><input type='radio' name='expires' value='365' {{if eq .Form.Expires 365}}checked{{end}}> One Year</label>
+        <label class='choice'><input type='radio' name='expires' value='7' {{if eq .Form.Expires 7}}checked{{end}}> One Week</label>
+        <label class='choice'><input type='radio' name='expires' value='1' {{if eq .Form.Expires 1}}checked{{end}}> One Day</label>
     </div>
     <div>
         <input type='submit' value='Publish snippet'>
