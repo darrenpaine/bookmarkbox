@@ -16,17 +16,18 @@ CREATE TABLE sessions (
 CREATE INDEX sessions_expiry_idx ON sessions (expiry);
 
 CREATE TABLE bookmarks (
-    id          INTEGER PRIMARY KEY,
-    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    url         TEXT NOT NULL,
-    title       TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    notes       TEXT NOT NULL DEFAULT '',
-    favicon     TEXT NOT NULL DEFAULT '',
-    favourite   BOOLEAN NOT NULL DEFAULT FALSE,
-    read_later  BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at  DATETIME NOT NULL,
-    UNIQUE (user_id, url)
+    id             INTEGER PRIMARY KEY,
+    user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    url            TEXT NOT NULL,
+    normalised_url TEXT NOT NULL,
+    title          TEXT NOT NULL,
+    description    TEXT NOT NULL DEFAULT '',
+    notes          TEXT NOT NULL DEFAULT '',
+    favicon        TEXT NOT NULL DEFAULT '',
+    favourite      BOOLEAN NOT NULL DEFAULT FALSE,
+    read_later     BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at     DATETIME NOT NULL,
+    UNIQUE (user_id, normalised_url)
 );
 CREATE INDEX bookmarks_user_created_idx ON bookmarks (user_id, created_at);
 

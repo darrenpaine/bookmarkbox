@@ -69,6 +69,20 @@ func TestBookmarkModelInsert(t *testing.T) {
 		assert.Equal(t, errors.Is(err, ErrDuplicateURL), true)
 	})
 
+	t.Run("Duplicate after normalising", func(t *testing.T) {
+		_, err := m.Insert(1, &Bookmark{URL: "https://GO.dev/doc/effective_go/?utm_source=x", Title: "Again"})
+		assert.Equal(t, errors.Is(err, ErrDuplicateURL), true)
+	})
+
+	t.Run("Original URL kept for display", func(t *testing.T) {
+		id, err := m.Insert(1, &Bookmark{URL: "https://Example.com/?utm_source=x", Title: "Example"})
+		assert.NilError(t, err)
+		b, err := m.Get(1, id)
+		assert.NilError(t, err)
+		assert.Equal(t, b.URL, "https://Example.com/?utm_source=x")
+		assert.NilError(t, m.Delete(1, id))
+	})
+
 	t.Run("Same URL, other user", func(t *testing.T) {
 		_, err := m.Insert(2, &Bookmark{URL: "https://go.dev/doc/effective_go", Title: "Bob's copy"})
 		assert.NilError(t, err)

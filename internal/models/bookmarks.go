@@ -55,7 +55,7 @@ func NormaliseTags(tags []string) []string {
 }
 
 // Insert saves a new bookmark and its tags in one transaction.
-// Returns ErrDuplicateURL if the user has already saved this URL.
+// Returns ErrDuplicateURL if it would be a Duplicate of one of the user's bookmarks.
 func (m *BookmarkModel) Insert(userID int, b *Bookmark) (int, error) {
 	ctx := context.Background()
 	tx, err := m.DB.BeginTx(ctx, nil)
@@ -64,17 +64,21 @@ func (m *BookmarkModel) Insert(userID int, b *Bookmark) (int, error) {
 	}
 	defer tx.Rollback() // no-op after Commit
 
+	normalisedURL, err := NormaliseURL(b.URL)
+	if err != nil {
+		return 0, err
+	}
 	created := b.Created
 	if created.IsZero() {
 		created = time.Now()
 	}
 	stmt := `INSERT INTO bookmarks
-	         (user_id, url, title, description, notes, favicon, favourite, read_later, created_at)
-	         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	result, err := tx.ExecContext(ctx, stmt, userID, b.URL, b.Title, b.Description, b.Notes,
+	         (user_id, url, normalised_url, title, description, notes, favicon, favourite, read_later, created_at)
+	         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	result, err := tx.ExecContext(ctx, stmt, userID, b.URL, normalisedURL, b.Title, b.Description, b.Notes,
 		b.Favicon, b.Favourite, b.ReadLater, created.UTC())
 	if err != nil {
-		if isUniqueViolation(err, "bookmarks.user_id, bookmarks.url") {
+		if isUniqueViolation(err, "bookmarks.user_id, bookmarks.normalised_url") {
 			return 0, ErrDuplicateURL
 		}
 		return 0, err
