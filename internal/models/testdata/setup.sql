@@ -1,31 +1,22 @@
-CREATE TABLE
-    snippets (
-        id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
-        title VARCHAR(100) NOT NULL,
-        content TEXT NOT NULL,
-        created DATETIME NOT NULL,
-        expires DATETIME NOT NULL
-    );
+-- Test data, loaded after the migrations. Alice's password is "pa$$word".
+INSERT INTO users (name, email, hashed_password, created)
+VALUES (
+    'Alice Jones',
+    'alice@example.com',
+    '$2a$12$NuTjWXm3KKntReFwyBVHyuf/to.HEwTy.eS206TNfkGfr6HzGJSWG',
+    '2026-01-01 10:00:00'
+);
 
-CREATE INDEX idx_snippets_created ON snippets (created);
+INSERT INTO users (name, email, hashed_password, created)
+VALUES (
+    'Bob Smith',
+    'bob@example.com',
+    '$2a$12$NuTjWXm3KKntReFwyBVHyuf/to.HEwTy.eS206TNfkGfr6HzGJSWG',
+    '2026-01-01 11:00:00'
+);
 
-CREATE TABLE
-    users (
-        id INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,
-        name VARCHAR(255) NOT NULL,
-        email VARCHAR(255) NOT NULL,
-        hashed_password CHAR(60) NOT NULL,
-        created DATETIME NOT NULL
-    );
+INSERT INTO bookmarks (user_id, url, title, description, created_at)
+VALUES (1, 'https://go.dev/doc/effective_go', 'Effective Go', 'Idiomatic Go', '2026-01-02 09:00:00');
 
-ALTER TABLE users ADD CONSTRAINT users_uc_email UNIQUE (email);
-
-INSERT INTO
-    users (name, email, hashed_password, created)
-VALUES
-    (
-        'Alice Jones',
-        'alice@example.com',
-        '$2a$12$NuTjWXm3KKntReFwyBVHyuf/to.HEwTy.eS206TNfkGfr6HzGJSWG',
-        '2026-01-01 10:00:00'
-    );
+INSERT INTO tags (user_id, name) VALUES (1, 'go');
+INSERT INTO bookmark_tags (bookmark_id, tag_id) VALUES (1, 1);

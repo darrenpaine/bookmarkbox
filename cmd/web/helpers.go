@@ -72,7 +72,7 @@ func (app *application) newTemplateData(r *http.Request) *templateData {
 // Helper to decode form data into the dst.
 func (app *application) decodePostForm(r *http.Request, dst any) error {
 	// Call ParseForm() on the request, in the same way that we did in our
-	// createSnippetPost handler.
+	// bookmarkCreatePost handler.
 	err := r.ParseForm()
 	if err != nil {
 		return err
@@ -102,4 +102,9 @@ func (app *application) isAuthenticated(r *http.Request) bool {
 		return false
 	}
 	return isAuthenticated
+}
+
+// The ID of the logged-in user, or 0 if nobody is logged in.
+func (app *application) authenticatedUserID(r *http.Request) int {
+	return app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
 }

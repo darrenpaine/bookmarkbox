@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/alexedwards/scs/v2"
+	"github.com/darrenpaine/bookmarkbox/internal/models/mocks"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/form/v4"
-	"snippetbox.darrenpaine.com/internal/models/mocks"
 )
 
 // Helper - application struct with mocked dependencies.
@@ -37,8 +37,8 @@ func newTestApplication(t *testing.T) *application {
 		errorLog:       log.New(io.Discard, "", 0),
 		infoLog:        log.New(io.Discard, "", 0),
 		router:         chi.NewRouter(),
-		snippets:       &mocks.SnippetModel{}, // Use the mock.
-		users:          &mocks.UserModel{},    // Use the mock.
+		bookmarks:      &mocks.BookmarkModel{}, // Use the mock.
+		users:          &mocks.UserModel{},     // Use the mock.
 		templateCache:  templateCache,
 		formDecoder:    formDecoder,
 		sessionManager: sessionManager,

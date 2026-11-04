@@ -3,10 +3,8 @@ package models
 import (
 	"database/sql"
 	"errors"
-	"strings"
 	"time"
 
-	"github.com/go-sql-driver/mysql"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -29,8 +27,6 @@ type User struct {
 	Created        time.Time
 }
 
-const ER_DUP_ENTRY = 1062
-
 // UserModel type wraps a database connection pool.
 type UserModel struct {
 	DB *sql.DB
@@ -44,15 +40,12 @@ func (m *UserModel) Insert(name, email, password string) error {
 		return err
 	}
 	stmt := `INSERT INTO users (name, email, hashed_password, created)
-             VALUES(?, ?, ?, UTC_TIMESTAMP())`
-	_, err = m.DB.Exec(stmt, name, email, string(hashedPassword))
+             VALUES(?, ?, ?, ?)`
+	_, err = m.DB.Exec(stmt, name, email, string(hashedPassword), time.Now().UTC())
 	if err != nil {
-		// If the SQL error is ER_DUP_ENTRY we return our ErrDuplicateEmail error.
-		var mySQLError *mysql.MySQLError
-		if errors.As(err, &mySQLError) {
-			if mySQLError.Number == ER_DUP_ENTRY && strings.Contains(mySQLError.Message, "users_uc_email") {
-				return ErrDuplicateEmail
-			}
+		// The email column is UNIQUE (and case-insensitive).
+		if isUniqueViolation(err, "users.email") {
+			return ErrDuplicateEmail
 		}
 		return err
 	}
@@ -107,6 +100,7 @@ func (m *UserModel) Get(id int) (*User, error) {
 		return &User{}, ErrNoRecord
 	}
 	return &User{
+		ID:      id,
 		Name:    name,
 		Email:   email,
 		Created: created,

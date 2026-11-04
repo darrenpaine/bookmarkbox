@@ -3,11 +3,13 @@ package main
 import (
 	"html/template"
 	"io/fs"
+	"net/url"
 	"path/filepath"
+	"strings"
 	"time"
 
-	"snippetbox.darrenpaine.com/internal/models"
-	"snippetbox.darrenpaine.com/ui"
+	"github.com/darrenpaine/bookmarkbox/internal/models"
+	"github.com/darrenpaine/bookmarkbox/ui"
 )
 
 // Define a templateData type to act as the holding structure for
@@ -16,8 +18,8 @@ import (
 // to it as the build progresses.
 type templateData struct {
 	CurrentYear     int
-	Snippet         *models.Snippet
-	Snippets        []*models.Snippet
+	Bookmark        *models.Bookmark
+	Bookmarks       []*models.Bookmark
 	Form            any
 	Flash           string
 	IsAuthenticated bool // Has an authenticated ID
@@ -37,6 +39,16 @@ func humanDate(t time.Time) string {
 // custom template functions and the functions themselves.
 var functions = template.FuncMap{
 	"humanDate": humanDate,
+	"domain":    domain,
+}
+
+// domain() returns the host part of a URL without "www.", e.g. "go.dev".
+func domain(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimPrefix(u.Hostname(), "www.")
 }
 
 func newTemplateCache() (map[string]*template.Template, error) {

@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"testing"
 
-	"snippetbox.darrenpaine.com/internal/assert"
+	"github.com/darrenpaine/bookmarkbox/internal/assert"
 )
 
 func TestPing(t *testing.T) {
@@ -47,10 +47,28 @@ func TestPing(t *testing.T) {
 		assert.Equal(t, string(bytes.TrimSpace(resp_body)), "OK")
 	})
 }
-func TestSnippetView(t *testing.T) {
+
+// login logs the test client in as Alice (user 1 in the mocks).
+func (ts *testServer) login(t *testing.T) {
+	form := url.Values{}
+	form.Add("email", "alice@example.com")
+	form.Add("password", "pa$$word")
+	code, _, _ := ts.postForm(t, "/user/login", form)
+	assert.Equal(t, code, http.StatusSeeOther)
+}
+
+func TestBookmarkView(t *testing.T) {
 	app := newTestApplication(t)
 	ts := newTestServer(t, app.routes())
 	defer ts.Close()
+
+	t.Run("Unauthenticated redirects to login", func(t *testing.T) {
+		code, header, _ := ts.get(t, "/bookmarks/1")
+		assert.Equal(t, code, http.StatusSeeOther)
+		assert.StringContains(t, header.Get("Location"), "/user/login")
+	})
+
+	ts.login(t)
 	tests := []struct {
 		name     string
 		urlPath  string
@@ -58,34 +76,29 @@ func TestSnippetView(t *testing.T) {
 		wantBody string
 	}{
 		{
-			name:     "Valid ID",
-			urlPath:  "/snippet/view/1",
+			name:     "Own bookmark",
+			urlPath:  "/bookmarks/1",
 			wantCode: http.StatusOK,
-			wantBody: "An old silent pond...",
+			wantBody: "Effective Go",
 		},
 		{
-			name:     "Non-existent ID",
-			urlPath:  "/snippet/view/2",
+			name:     "Non-existent or other user's ID",
+			urlPath:  "/bookmarks/2",
 			wantCode: http.StatusNotFound,
 		},
 		{
 			name:     "Negative ID",
-			urlPath:  "/snippet/view/-1",
+			urlPath:  "/bookmarks/-1",
 			wantCode: http.StatusNotFound,
 		},
 		{
 			name:     "Decimal ID",
-			urlPath:  "/snippet/view/1.23",
+			urlPath:  "/bookmarks/1.23",
 			wantCode: http.StatusNotFound,
 		},
 		{
 			name:     "String ID",
-			urlPath:  "/snippet/view/foo",
-			wantCode: http.StatusNotFound,
-		},
-		{
-			name:     "Empty ID",
-			urlPath:  "/snippet/view/",
+			urlPath:  "/bookmarks/foo",
 			wantCode: http.StatusNotFound,
 		},
 	}
@@ -98,6 +111,22 @@ func TestSnippetView(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHome(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+
+	code, _, body := ts.get(t, "/")
+	assert.Equal(t, code, http.StatusOK)
+	assert.StringContains(t, body, "Welcome to BookmarkBox")
+
+	ts.login(t)
+	code, _, body = ts.get(t, "/")
+	assert.Equal(t, code, http.StatusOK)
+	assert.StringContains(t, body, "<a href='/bookmarks/1'>Effective Go</a>")
+	assert.StringContains(t, body, "go.dev")
 }
 
 // Test User Signup Form
@@ -223,37 +252,105 @@ func TestUserSignup(t *testing.T) {
 	}
 }
 
-// Test for Snippet Create
-func TestSnippetCreate(t *testing.T) {
+// Test for Bookmark Create
+func TestBookmarkCreate(t *testing.T) {
 	app := newTestApplication(t)
 	ts := newTestServer(t, app.routes())
 	defer ts.Close()
 
-	const (
-		validName     = "Alice"
-		validPassword = "pa$$word"
-		validEmail    = "alice@example.com"
-	)
+	const formTag = "<form action='/bookmarks/new' method='POST'>"
 
 	t.Run("Unauthenticated has no access", func(t *testing.T) {
-		code, header, _ := ts.get(t, "/snippet/create")
-		// Is it OK, "OK"?
+		code, header, _ := ts.get(t, "/bookmarks/new")
 		assert.Equal(t, code, http.StatusSeeOther)
 		assert.StringContains(t, header.Get("Location"), "/user/login")
 	})
 
+	ts.login(t)
+
 	t.Run("Authenticated has access", func(t *testing.T) {
-
-		login_form := url.Values{}
-		login_form.Add("email", validEmail)
-		login_form.Add("password", validPassword)
-		ts.postForm(t, "/user/login", login_form)
-
-		code, _, body := ts.get(t, "/snippet/create")
-		// Is it showing the form?
+		code, _, body := ts.get(t, "/bookmarks/new")
 		assert.Equal(t, code, http.StatusOK)
-		assert.StringContains(t, body, "<form action='/snippet/create' method='POST'>")
+		assert.StringContains(t, body, formTag)
 	})
+
+	tests := []struct {
+		name      string
+		url       string
+		title     string
+		wantCode  int
+		wantError string
+	}{
+		{
+			name:     "Valid submission",
+			url:      "https://pkg.go.dev",
+			title:    "Go packages",
+			wantCode: http.StatusSeeOther,
+		},
+		{
+			name:      "Empty URL",
+			url:       "",
+			title:     "Go packages",
+			wantCode:  http.StatusUnprocessableEntity,
+			wantError: "This field cannot be blank",
+		},
+		{
+			name:      "Not a web URL",
+			url:       "ftp://example.com",
+			title:     "FTP",
+			wantCode:  http.StatusUnprocessableEntity,
+			wantError: "This must be a full http:// or https:// address",
+		},
+		{
+			name:      "Empty title",
+			url:       "https://pkg.go.dev",
+			title:     "  ",
+			wantCode:  http.StatusUnprocessableEntity,
+			wantError: "This field cannot be blank",
+		},
+		{
+			name:      "Duplicate URL",
+			url:       "https://go.dev/doc/effective_go",
+			title:     "Effective Go",
+			wantCode:  http.StatusUnprocessableEntity,
+			wantError: "You have already saved this address",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			form := url.Values{}
+			form.Add("url", tt.url)
+			form.Add("title", tt.title)
+			form.Add("tags", "go, docs")
+			code, header, body := ts.postForm(t, "/bookmarks/new", form)
+			assert.Equal(t, code, tt.wantCode)
+			if tt.wantError != "" {
+				assert.StringContains(t, body, tt.wantError)
+				assert.StringContains(t, body, formTag)
+			} else {
+				assert.Equal(t, header.Get("Location"), "/bookmarks/2")
+			}
+		})
+	}
+}
+
+// Favourite and delete only work on the user's own bookmarks.
+func TestBookmarkActions(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+	ts.login(t)
+
+	for _, action := range []string{"favourite", "delete"} {
+		t.Run(action+" own", func(t *testing.T) {
+			code, _, _ := ts.postForm(t, "/bookmarks/1/"+action, url.Values{})
+			assert.Equal(t, code, http.StatusSeeOther)
+		})
+		t.Run(action+" other", func(t *testing.T) {
+			code, _, _ := ts.postForm(t, "/bookmarks/2/"+action, url.Values{})
+			assert.Equal(t, code, http.StatusNotFound)
+		})
+	}
 }
 
 // Test for Change User Password

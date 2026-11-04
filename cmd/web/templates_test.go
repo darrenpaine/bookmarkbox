@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"snippetbox.darrenpaine.com/internal/assert"
+	"github.com/darrenpaine/bookmarkbox/internal/assert"
 )
 
 func TestHumanDate(t *testing.T) {

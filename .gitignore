@@ -1,5 +1,8 @@
-Makefile
 *.pem
+# Local SQLite database files
+*.db
+*.db-wal
+*.db-shm
 *.md
 # does not ignore the README.md file
 !README.md

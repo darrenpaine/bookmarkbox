@@ -1,9 +1,10 @@
 package models
 
 import (
+	"errors"
 	"testing"
 
-	"snippetbox.darrenpaine.com/internal/assert"
+	"github.com/darrenpaine/bookmarkbox/internal/assert"
 )
 
 func TestUserModelExists(t *testing.T) {
@@ -29,7 +30,7 @@ func TestUserModelExists(t *testing.T) {
 		},
 		{
 			name:   "Non-existent ID",
-			userID: 2,
+			userID: 3,
 			want:   false,
 		},
 	}
@@ -45,4 +46,17 @@ func TestUserModelExists(t *testing.T) {
 			assert.NilError(t, err)
 		})
 	}
+}
+
+func TestUserModelInsertDuplicateEmail(t *testing.T) {
+	if testing.Short() {
+		t.Skip("models: skipping integration DB tests")
+	}
+	db := newTestDB(t)
+	m := UserModel{db}
+
+	assert.NilError(t, m.Insert("Carol", "carol@example.com", "pa$$word"))
+	// Email is unique regardless of case.
+	err := m.Insert("Alice again", "ALICE@example.com", "pa$$word")
+	assert.Equal(t, errors.Is(err, ErrDuplicateEmail), true)
 }

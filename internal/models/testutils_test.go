@@ -1,37 +1,36 @@
 package models
 
 import (
+	"context"
 	"database/sql"
 	"os"
+	"path/filepath"
 	"testing"
+
+	"github.com/darrenpaine/bookmarkbox/migrations"
+	_ "modernc.org/sqlite"
 )
 
+// newTestDB creates a fresh SQLite database file in a temporary directory,
+// applies the migrations and loads testdata/setup.sql. The directory (and so
+// the database) is removed automatically when the test ends.
 func newTestDB(t *testing.T) *sql.DB {
-	// Use "multiStatements=true" parameter to allow multiple SQL statements from setup files
-	db, err := sql.Open("mysql", "test_web:pass@/test_snippetbox?parseTime=true&multiStatements=true")
+	dsn := "file:" + filepath.Join(t.TempDir(), "test.db") + "?_pragma=foreign_keys(1)"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	if err = migrations.Up(context.Background(), db); err != nil {
 		t.Fatal(err)
 	}
 	script, err := os.ReadFile("./testdata/setup.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = db.Exec(string(script))
-	if err != nil {
+	if _, err = db.Exec(string(script)); err != nil {
 		t.Fatal(err)
 	}
-	// Create the post-test cleanup
-	t.Cleanup(func() {
-		script, err := os.ReadFile("./testdata/teardown.sql")
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = db.Exec(string(script))
-		if err != nil {
-			t.Fatal(err)
-		}
-		db.Close()
-	})
-	// Return the database connection pool.
 	return db
 }

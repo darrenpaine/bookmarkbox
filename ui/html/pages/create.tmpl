@@ -1,7 +1,14 @@
-<!-- Form for the snippet create POST method -->
-{{define "title"}}Create a New Snippet{{end}}
+<!-- Form for the bookmark create POST method -->
+{{define "title"}}Add a Bookmark{{end}}
 {{define "main"}}
-<form action='/snippet/create' method='POST'>
+<form action='/bookmarks/new' method='POST'>
+    <div>
+        <label>URL:</label>
+        {{with .Form.FieldErrors.url}}
+        <label class='error'>{{.}}</label>
+        {{end}}
+        <input type='url' name='url' value='{{.Form.URL}}' placeholder='https://'>
+    </div>
     <div>
         <label>Title:</label>
         {{with .Form.FieldErrors.title}}
@@ -10,23 +17,23 @@
         <input type='text' name='title' value='{{.Form.Title}}'>
     </div>
     <div>
-        <label>Content:</label>
-        {{with .Form.FieldErrors.content}}
-        <label class='error'>{{.}}</label>
-        {{end}}
-        <textarea name='content'>{{.Form.Content}}</textarea>
+        <label>Description:</label>
+        <input type='text' name='description' value='{{.Form.Description}}'>
     </div>
     <div>
-        <label>Delete in:</label>
-        {{with .Form.FieldErrors.expires}}
-        <label class='error'>{{.}}</label>
-        {{end}}
-        <label class='choice'><input type='radio' name='expires' value='365' {{if eq .Form.Expires 365}}checked{{end}}> One Year</label>
-        <label class='choice'><input type='radio' name='expires' value='7' {{if eq .Form.Expires 7}}checked{{end}}> One Week</label>
-        <label class='choice'><input type='radio' name='expires' value='1' {{if eq .Form.Expires 1}}checked{{end}}> One Day</label>
+        <label>Tags (comma-separated):</label>
+        <input type='text' name='tags' value='{{.Form.Tags}}' placeholder='go, databases'>
     </div>
     <div>
-        <input type='submit' value='Publish snippet'>
+        <label>Notes:</label>
+        <textarea name='notes'>{{.Form.Notes}}</textarea>
+    </div>
+    <div>
+        <label class='choice'><input type='checkbox' name='favourite' value='true' {{if .Form.Favourite}}checked{{end}}> Favourite</label>
+        <label class='choice'><input type='checkbox' name='read_later' value='true' {{if .Form.ReadLater}}checked{{end}}> Read later</label>
+    </div>
+    <div>
+        <input type='submit' value='Save bookmark'>
     </div>
 </form>
 {{end}}

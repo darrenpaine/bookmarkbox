@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"database/sql"
 	"flag"
@@ -10,20 +11,21 @@ import (
 	"os"
 	"time"
 
-	"snippetbox.darrenpaine.com/internal/models"
+	"github.com/darrenpaine/bookmarkbox/internal/models"
+	"github.com/darrenpaine/bookmarkbox/migrations"
 
-	"github.com/alexedwards/scs/mysqlstore"
+	"github.com/alexedwards/scs/sqlite3store"
 	"github.com/alexedwards/scs/v2"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/form/v4"
-	_ "github.com/go-sql-driver/mysql"
+	_ "modernc.org/sqlite"
 )
 
 // The application struct holds application-wide dependencies for the web application.
 type application struct {
 	errorLog       *log.Logger
 	infoLog        *log.Logger
-	snippets       models.SnippetModelInterface
+	bookmarks      models.BookmarkModelInterface
 	users          models.UserModelInterface
 	templateCache  map[string]*template.Template
 	router         *chi.Mux
@@ -34,9 +36,8 @@ type application struct {
 
 func main() {
 	// Define and parse command line options -addr and -dsn
-	// Set up user and pass here to match database credentials if using automatically
 	addr := flag.String("addr", ":4000", "HTTP network address")
-	dsn := flag.String("dsn", "user:pass@/snippetbox?parseTime=true", "MySQL data source name")
+	dsn := flag.String("dsn", defaultDSN, "SQLite data source name")
 	verbose := flag.Bool("debug", false, "Flag to produce verbose debug messages")
 	https := flag.Bool("https", false, "Flag to use TLS/https")
 	flag.Parse()
@@ -58,7 +59,7 @@ func main() {
 
 	// Session management - 12 hour timeout
 	sessionManager := scs.New()
-	sessionManager.Store = mysqlstore.New(db)
+	sessionManager.Store = sqlite3store.New(db)
 	sessionManager.Lifetime = 12 * time.Hour
 	sessionManager.Cookie.Secure = *https
 	sessionManager.Cookie.SameSite = http.SameSiteStrictMode
@@ -66,7 +67,7 @@ func main() {
 	app := &application{
 		errorLog:       errorLog,
 		infoLog:        infoLog,
-		snippets:       &models.SnippetModel{DB: db},
+		bookmarks:      &models.BookmarkModel{DB: db},
 		users:          &models.UserModel{DB: db},
 		templateCache:  templateCache,
 		router:         chi.NewRouter(),
@@ -104,17 +105,25 @@ func main() {
 	app.errorLog.Fatal(err)
 }
 
-// The openDB() function wraps sql.Open() and returns a sql.DB connection pool
-// for a given DSN.
+// Local SQLite file. Foreign keys are off by default in SQLite, so turn them on
+// (needed for ON DELETE CASCADE); WAL and a busy timeout let reads and writes
+// from concurrent requests share the file.
+const defaultDSN = "file:bookmarkbox.db?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+
+// The openDB() function opens the SQLite database for a given DSN and applies
+// any pending schema migrations.
 func openDB(dsn string) (*sql.DB, error) {
-	db, err := sql.Open("mysql", dsn)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
-
 	if err = db.Ping(); err != nil {
+		db.Close()
 		return nil, err
 	}
-
+	if err = migrations.Up(context.Background(), db); err != nil {
+		db.Close()
+		return nil, err
+	}
 	return db, nil
 }

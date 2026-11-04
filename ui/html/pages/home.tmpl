@@ -1,22 +1,32 @@
 {{define "title"}}Home{{end}}
 {{define "main"}}
-<h2>Latest Snippets</h2>
-{{if .Snippets}}
-<table class='snippets'>
+{{if .IsAuthenticated}}
+<h2>Your Bookmarks</h2>
+{{if .Bookmarks}}
+<table class='bookmarks'>
     <tr>
         <th>Title</th>
-        <th>Created</th>
-        <th>ID</th>
+        <th>Tags</th>
+        <th>Saved</th>
     </tr>
-    {{range .Snippets}}
+    {{range .Bookmarks}}
     <tr>
-        <td><a href='/snippet/view/{{.ID}}'>{{.Title}}</a></td>
+        <td>
+            {{if .Favourite}}<span class='star' title='Favourite'>&#9733;</span>{{end}}
+            <a href='/bookmarks/{{.ID}}'>{{.Title}}</a>
+            <span class='domain'>{{domain .URL}}</span>
+        </td>
+        <td>{{range .Tags}}<span class='tag'>{{.}}</span> {{end}}</td>
         <td>{{humanDate .Created}}</td>
-        <td>#{{.ID}}</td>
     </tr>
     {{end}}
 </table>
 {{else}}
-<p>There's nothing to see here... yet!</p>
+<p>No bookmarks yet. <a href='/bookmarks/new'>Add your first one</a>.</p>
+{{end}}
+{{else}}
+<h2>Welcome to BookmarkBox</h2>
+<p>Save, tag and star your bookmarks in one place.</p>
+<p><a href='/user/signup'>Sign up</a> or <a href='/user/login'>log in</a> to get started.</p>
 {{end}}
 {{end}}

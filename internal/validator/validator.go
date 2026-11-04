@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -82,4 +83,13 @@ func PermittedValue[T comparable](value T, permittedValues ...T) bool {
 // Equal() returns true if the two values are the same.
 func Equal[T comparable](first, second T) bool {
 	return first == second
+}
+
+// Returns true if the value is an absolute http:// or https:// URL with a host.
+func WebURL(value string) bool {
+	u, err := url.Parse(value)
+	if err != nil {
+		return false
+	}
+	return (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }

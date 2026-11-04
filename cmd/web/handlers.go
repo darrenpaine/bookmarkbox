@@ -5,18 +5,23 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
+	"github.com/darrenpaine/bookmarkbox/internal/models"
+	"github.com/darrenpaine/bookmarkbox/internal/validator"
 	"github.com/go-chi/chi/v5"
-	"snippetbox.darrenpaine.com/internal/models"
-	"snippetbox.darrenpaine.com/internal/validator"
 )
 
-// Snippet creation form - with field validation
-type snippetCreateForm struct {
+// Bookmark creation form - with field validation
+type bookmarkCreateForm struct {
 	validator.Validator `form:"-"`
+	URL                 string `form:"url"`
 	Title               string `form:"title"`
-	Content             string `form:"content"`
-	Expires             int    `form:"expires"`
+	Description         string `form:"description"`
+	Notes               string `form:"notes"`
+	Tags                string `form:"tags"` // comma-separated
+	Favourite           bool   `form:"favourite"`
+	ReadLater           bool   `form:"read_later"`
 }
 
 // User Signup form - with field validation
@@ -42,15 +47,17 @@ type userChangePasswordForm struct {
 	ConfirmPassword     string `form:"confirm_password"`
 }
 
-// Render the Home page
+// Render the Home page: the user's latest bookmarks, or an intro if logged out.
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
-	snippets, err := app.snippets.Latest()
-	if err != nil {
-		app.serverError(w, err)
-		return
-	}
 	data := app.newTemplateData(r)
-	data.Snippets = snippets
+	if data.IsAuthenticated {
+		bookmarks, err := app.bookmarks.Latest(app.authenticatedUserID(r), 50)
+		if err != nil {
+			app.serverError(w, err)
+			return
+		}
+		data.Bookmarks = bookmarks
+	}
 	app.render(w, http.StatusOK, "home.tmpl", data)
 }
 
@@ -60,15 +67,20 @@ func (app *application) about(w http.ResponseWriter, r *http.Request) {
 	app.render(w, http.StatusOK, "about.tmpl", data)
 }
 
-// Render the view on a snippet
-func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
-	idvalue := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idvalue)
-	if err != nil || id < 1 {
+// bookmarkID reads the {id} URL parameter; ok is false if it isn't a positive integer.
+func bookmarkID(r *http.Request) (int, bool) {
+	id, err := strconv.Atoi(chi.URLParam(r, "id"))
+	return id, err == nil && id > 0
+}
+
+// Render one of the user's bookmarks. Other users' bookmarks are 404s.
+func (app *application) bookmarkView(w http.ResponseWriter, r *http.Request) {
+	id, ok := bookmarkID(r)
+	if !ok {
 		app.notFound(w)
 		return
 	}
-	snippet, err := app.snippets.Get(id)
+	bookmark, err := app.bookmarks.Get(app.authenticatedUserID(r), id)
 	if err != nil {
 		if errors.Is(err, models.ErrNoRecord) {
 			app.notFound(w)
@@ -78,55 +90,102 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := app.newTemplateData(r)
-	data.Snippet = snippet
+	data.Bookmark = bookmark
 	app.render(w, http.StatusOK, "view.tmpl", data)
 }
 
-// Render the snippet Create form.
-func (app *application) snippetCreateShowForm(w http.ResponseWriter, r *http.Request) {
+// Render the bookmark Create form.
+func (app *application) bookmarkCreateShowForm(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
-	data.Form = snippetCreateForm{
-		Expires: 365,
-	}
+	data.Form = bookmarkCreateForm{}
 	app.render(w, http.StatusOK, "create.tmpl", data)
 }
 
-// Do the snippet create - validate, create and display new snippet
-func (app *application) snippetCreatePost(w http.ResponseWriter, r *http.Request) {
-	var form snippetCreateForm
+// Validate and save a new bookmark, then show it.
+func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Request) {
+	var form bookmarkCreateForm
 	err := app.decodePostForm(r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return
 	}
+	form.URL = strings.TrimSpace(form.URL)
+	form.Title = strings.TrimSpace(form.Title)
 
 	// VALIDATION:
+	form.CheckField(validator.NotBlank(form.URL), "url", "This field cannot be blank")
+	form.CheckField(validator.WebURL(form.URL), "url", "This must be a full http:// or https:// address")
 	form.CheckField(validator.NotBlank(form.Title), "title", "This field cannot be blank")
-	form.CheckField(validator.MaxChars(form.Title, 100), "title", "This field cannot be more than 100 characters long")
-	form.CheckField(validator.NotBlank(form.Content), "content", "This field cannot be blank")
-	form.CheckField(validator.PermittedValue(form.Expires, 1, 7, 365), "expires", "This field must equal 1, 7 or 365")
-	// If there are any validation errors re-display the create.tmpl template,
-	// passing in the snippetCreateForm instance as dynamic data in the Form
-	// field. The HTTP status code 422 Unprocessable Entity
-	// indicates that there was a validation error.
+	form.CheckField(validator.MaxChars(form.Title, 200), "title", "This field cannot be more than 200 characters long")
 	if !form.Valid() {
 		data := app.newTemplateData(r)
 		data.Form = form
 		app.render(w, http.StatusUnprocessableEntity, "create.tmpl", data)
 		return
 	}
-	// We also need to update this line to pass the data from the
-	// snippetCreateForm instance to our Insert() method.
-	id, err := app.snippets.Insert(form.Title, form.Content, form.Expires)
+
+	id, err := app.bookmarks.Insert(app.authenticatedUserID(r), &models.Bookmark{
+		URL:         form.URL,
+		Title:       form.Title,
+		Description: form.Description,
+		Notes:       form.Notes,
+		Favourite:   form.Favourite,
+		ReadLater:   form.ReadLater,
+		Tags:        strings.Split(form.Tags, ","),
+	})
 	if err != nil {
-		app.serverError(w, err)
+		if errors.Is(err, models.ErrDuplicateURL) {
+			form.AddFieldError("url", "You have already saved this address")
+			data := app.newTemplateData(r)
+			data.Form = form
+			app.render(w, http.StatusUnprocessableEntity, "create.tmpl", data)
+		} else {
+			app.serverError(w, err)
+		}
 		return
 	}
 
-	// Use the Put() method to add a string value ("Snippet successfully
-	// created!") and the corresponding key ("flash") to the session data.
-	app.sessionManager.Put(r.Context(), "flash", "Snippet successfully created!")
-	http.Redirect(w, r, fmt.Sprintf("/snippet/view/%d", id), http.StatusSeeOther)
+	app.sessionManager.Put(r.Context(), "flash", "Bookmark saved!")
+	http.Redirect(w, r, fmt.Sprintf("/bookmarks/%d", id), http.StatusSeeOther)
+}
+
+// Toggle the favourite star, then go back to the bookmark.
+func (app *application) bookmarkFavouritePost(w http.ResponseWriter, r *http.Request) {
+	id, ok := bookmarkID(r)
+	if !ok {
+		app.notFound(w)
+		return
+	}
+	err := app.bookmarks.ToggleFavourite(app.authenticatedUserID(r), id)
+	if err != nil {
+		if errors.Is(err, models.ErrNoRecord) {
+			app.notFound(w)
+		} else {
+			app.serverError(w, err)
+		}
+		return
+	}
+	http.Redirect(w, r, fmt.Sprintf("/bookmarks/%d", id), http.StatusSeeOther)
+}
+
+// Delete a bookmark, then go to the home page.
+func (app *application) bookmarkDeletePost(w http.ResponseWriter, r *http.Request) {
+	id, ok := bookmarkID(r)
+	if !ok {
+		app.notFound(w)
+		return
+	}
+	err := app.bookmarks.Delete(app.authenticatedUserID(r), id)
+	if err != nil {
+		if errors.Is(err, models.ErrNoRecord) {
+			app.notFound(w)
+		} else {
+			app.serverError(w, err)
+		}
+		return
+	}
+	app.sessionManager.Put(r.Context(), "flash", "Bookmark deleted.")
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // Show a form to create a user
@@ -263,8 +322,8 @@ func (app *application) ping(w http.ResponseWriter, _ *http.Request) {
 
 // View account /account/view
 func (app *application) userAccountView(w http.ResponseWriter, r *http.Request) {
-	userID := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
-	user, err := app.users.Get(int(userID))
+	userID := app.authenticatedUserID(r)
+	user, err := app.users.Get(userID)
 	if err != nil {
 		if errors.Is(err, models.ErrNoRecord) {
 			http.Redirect(w, r, "/user/login", http.StatusSeeOther)
@@ -281,8 +340,8 @@ func (app *application) userAccountView(w http.ResponseWriter, r *http.Request) 
 
 // Change password form
 func (app *application) userPasswordShowForm(w http.ResponseWriter, r *http.Request) {
-	userID := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
-	user, err := app.users.Get(int(userID))
+	userID := app.authenticatedUserID(r)
+	user, err := app.users.Get(userID)
 	if err != nil {
 		if errors.Is(err, models.ErrNoRecord) {
 			http.Redirect(w, r, "/user/login", http.StatusSeeOther)
@@ -320,7 +379,7 @@ func (app *application) userPasswordPost(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	id := app.sessionManager.GetInt(r.Context(), "authenticatedUserID")
+	id := app.authenticatedUserID(r)
 	err = app.users.PasswordUpdate(id, form.OldPassword, form.NewPassword)
 	if err != nil {
 		if errors.Is(err, models.ErrInvalidCredentials) {

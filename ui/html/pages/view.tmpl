@@ -1,15 +1,28 @@
-{{define "title"}}Snippet #{{.Snippet.ID}}{{end}}
+{{define "title"}}{{.Bookmark.Title}}{{end}}
 {{define "main"}}
-{{with .Snippet}}
-<div class='snippet'>
+{{with .Bookmark}}
+<div class='bookmark'>
     <div class='metadata'>
-        <strong>{{.Title}}</strong>
-        <span>#{{.ID}}</span>
+        <strong>{{if .Favourite}}&#9733; {{end}}{{.Title}}</strong>
+        <span>{{domain .URL}}</span>
     </div>
-    <pre><code>{{.Content}}</code></pre>
+    <p><a href='{{.URL}}' rel='noopener noreferrer'>{{.URL}}</a></p>
+    {{with .Description}}<p>{{.}}</p>{{end}}
+    {{with .Notes}}<pre><code>{{.}}</code></pre>{{end}}
+    {{if .Tags}}
+    <p>{{range .Tags}}<span class='tag'>{{.}}</span> {{end}}</p>
+    {{end}}
     <div class='metadata'>
-        <time>Created: {{humanDate .Created}}</time>
-        <time>Expires: {{humanDate .Expires}}</time>
+        <time>Saved: {{humanDate .Created}}</time>
+        {{if .ReadLater}}<span>Read later</span>{{end}}
+    </div>
+    <div class='actions'>
+        <form action='/bookmarks/{{.ID}}/favourite' method='POST'>
+            <button>{{if .Favourite}}Remove star{{else}}Star{{end}}</button>
+        </form>
+        <form action='/bookmarks/{{.ID}}/delete' method='POST'>
+            <button>Delete</button>
+        </form>
     </div>
 </div>
 {{end}}

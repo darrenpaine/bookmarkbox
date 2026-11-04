@@ -3,8 +3,8 @@ package main
 import (
 	"net/http"
 
+	"github.com/darrenpaine/bookmarkbox/ui"
 	"github.com/go-chi/chi/v5"
-	"snippetbox.darrenpaine.com/ui"
 )
 
 // The routes() method returns a servemux containing the application routes.
@@ -23,7 +23,6 @@ func (app *application) routes() http.Handler {
 		group_router.Use(app.authenticate)
 		group_router.Get("/", app.home)
 		group_router.Get("/about", app.about)
-		group_router.Get("/snippet/view/{id}", app.snippetView)
 		group_router.Get("/user/signup", app.userSignupShowForm)
 		group_router.Post("/user/signup", app.userSignupPost)
 		group_router.Get("/user/login", app.userLoginShowForm)
@@ -35,8 +34,11 @@ func (app *application) routes() http.Handler {
 		group_router.Use(app.sessionManager.LoadAndSave)
 		group_router.Use(app.authenticate)
 		group_router.Use(app.requireAuthentication)
-		group_router.Get("/snippet/create", app.snippetCreateShowForm)
-		group_router.Post("/snippet/create", app.snippetCreatePost)
+		group_router.Get("/bookmarks/new", app.bookmarkCreateShowForm)
+		group_router.Post("/bookmarks/new", app.bookmarkCreatePost)
+		group_router.Get("/bookmarks/{id}", app.bookmarkView)
+		group_router.Post("/bookmarks/{id}/favourite", app.bookmarkFavouritePost)
+		group_router.Post("/bookmarks/{id}/delete", app.bookmarkDeletePost)
 		group_router.Post("/user/logout", app.userLogoutPost)
 		group_router.Get("/account/view", app.userAccountView)
 		group_router.Get("/account/password/update", app.userPasswordShowForm)

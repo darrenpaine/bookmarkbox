@@ -224,20 +224,20 @@ button:hover {
     cursor: pointer;
 }
 
-.snippet {
+.bookmark {
     background-color: #FFFFFF;
     border: 1px solid #E4E5E7;
     border-radius: 3px;
 }
 
-.snippet pre {
+.bookmark pre {
     padding: 18px;
     border-top: 1px solid #E4E5E7;
     border-bottom: 1px solid #E4E5E7;
     overflow-x: auto;
 }
 
-.snippet .metadata {
+.bookmark .metadata {
     background-color: #F7F9FA;
     color: #6A6C6F;
     padding: 0.75em 18px;
@@ -247,7 +247,7 @@ button:hover {
     gap: 0 1em;
 }
 
-.snippet .metadata strong {
+.bookmark .metadata strong {
     color: #34495E;
 }
 
@@ -336,12 +336,41 @@ form label.choice input[type="radio"] {
         overflow-wrap: anywhere;
     }
 
-    table.snippets th:last-child,
-    table.snippets td:last-child {
+    table.bookmarks th:last-child,
+    table.bookmarks td:last-child {
         display: none;
     }
 
     nav a.live:after {
         display: none;
     }
+}
+/* Bookmark extras - placeholder styles until the restyle */
+.tag {
+    display: inline-block;
+    padding: 0 6px;
+    border-radius: 3px;
+    background: #e5ecf6;
+    font-size: 0.85em;
+}
+.star {
+    color: #d4a017;
+}
+.domain {
+    color: #888;
+    font-size: 0.85em;
+    margin-left: 4px;
+}
+.actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+.bookmark > p,
+.bookmark > .actions {
+    padding: 0 18px;
+    overflow-wrap: anywhere;
+}
+.bookmark > .actions {
+    padding-bottom: 12px;
 }
