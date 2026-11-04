@@ -1,48 +1,4 @@
-<!-- Form for the bookmark create POST method -->
 {{define "title"}}Add a Bookmark{{end}}
 {{define "main"}}
-<form action='/bookmarks/new' method='POST'>
-    <div>
-        <label>URL:</label>
-        {{with .Form.FieldErrors.url}}
-        <label class='error'>{{.}}</label>
-        {{end}}
-        <input type='url' name='url' value='{{.Form.URL}}' placeholder='https://'>
-    </div>
-    <div>
-        <label>Title:</label>
-        {{with .Form.FieldErrors.title}}
-        <label class='error'>{{.}}</label>
-        {{end}}
-        <input type='text' name='title' value='{{.Form.Title}}'>
-    </div>
-    <div>
-        <label>Description:</label>
-        {{with .Form.FieldErrors.description}}
-        <label class='error'>{{.}}</label>
-        {{end}}
-        <input type='text' name='description' value='{{.Form.Description}}'>
-    </div>
-    <div>
-        <label>Tags (comma-separated):</label>
-        {{with .Form.FieldErrors.tags}}
-        <label class='error'>{{.}}</label>
-        {{end}}
-        <input type='text' name='tags' value='{{.Form.Tags}}' placeholder='go, databases'>
-    </div>
-    <div>
-        <label>Notes:</label>
-        {{with .Form.FieldErrors.notes}}
-        <label class='error'>{{.}}</label>
-        {{end}}
-        <textarea name='notes'>{{.Form.Notes}}</textarea>
-    </div>
-    <div>
-        <label class='choice'><input type='checkbox' name='favourite' value='true' {{if .Form.Favourite}}checked{{end}}> Favourite</label>
-        <label class='choice'><input type='checkbox' name='read_later' value='true' {{if .Form.ReadLater}}checked{{end}}> Read later</label>
-    </div>
-    <div>
-        <input type='submit' value='Save bookmark'>
-    </div>
-</form>
+{{template "bookmarkform" .}}
 {{end}}

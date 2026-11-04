@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/darrenpaine/bookmarkbox/internal/assert"
+	"github.com/darrenpaine/bookmarkbox/internal/models/mocks"
 )
 
 func TestPing(t *testing.T) {
@@ -347,6 +348,69 @@ func TestBookmarkCreate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBookmarkEdit(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+
+	t.Run("Unauthenticated redirects to login", func(t *testing.T) {
+		code, header, _ := ts.get(t, "/bookmarks/1/edit")
+		assert.Equal(t, code, http.StatusSeeOther)
+		assert.StringContains(t, header.Get("Location"), "/user/login")
+	})
+
+	ts.login(t)
+
+	t.Run("Form is filled in", func(t *testing.T) {
+		code, _, body := ts.get(t, "/bookmarks/1/edit")
+		assert.Equal(t, code, http.StatusOK)
+		assert.StringContains(t, body, "<form action='/bookmarks/1/edit' method='POST'>")
+		assert.StringContains(t, body, "value='Effective Go'")
+		assert.StringContains(t, body, "value='docs, go'")
+	})
+
+	t.Run("Other user's bookmark", func(t *testing.T) {
+		code, _, _ := ts.get(t, "/bookmarks/2/edit")
+		assert.Equal(t, code, http.StatusNotFound)
+	})
+
+	tests := []struct {
+		name      string
+		path      string
+		url       string
+		title     string
+		wantCode  int
+		wantError string
+	}{
+		{"Valid", "/bookmarks/1/edit", "https://go.dev/doc", "Docs", http.StatusSeeOther, ""},
+		{"Invalid stays on edit form", "/bookmarks/1/edit", "https://go.dev/doc", "", http.StatusUnprocessableEntity, "This field cannot be blank"},
+		{"Duplicate URL", "/bookmarks/1/edit", mocks.DuplicateURL, "Docs", http.StatusUnprocessableEntity, "You have already saved this address"},
+		{"Other user's bookmark", "/bookmarks/2/edit", "https://go.dev/doc", "Docs", http.StatusNotFound, ""},
+		{"Invalid ID", "/bookmarks/foo/edit", "https://go.dev/doc", "Docs", http.StatusNotFound, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			form := url.Values{}
+			form.Add("url", tt.url)
+			form.Add("title", tt.title)
+			code, header, body := ts.postForm(t, tt.path, form)
+			assert.Equal(t, code, tt.wantCode)
+			if tt.wantError != "" {
+				assert.StringContains(t, body, tt.wantError)
+				assert.StringContains(t, body, "<form action='/bookmarks/1/edit' method='POST'>")
+			}
+			if tt.wantCode == http.StatusSeeOther {
+				assert.Equal(t, header.Get("Location"), "/bookmarks/1")
+			}
+		})
+	}
+
+	t.Run("Cross origin post blocked", func(t *testing.T) {
+		code, _, _ := ts.postFormCrossOrigin(t, "/bookmarks/1/edit", url.Values{})
+		assert.Equal(t, code, http.StatusForbidden)
+	})
 }
 
 func TestBookmarkCreateTextLimits(t *testing.T) {

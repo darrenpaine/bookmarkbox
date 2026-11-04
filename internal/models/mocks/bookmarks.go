@@ -17,6 +17,9 @@ var mockBookmark = &models.Bookmark{
 	Tags:        []string{"docs", "go"},
 }
 
+// DuplicateURL is rejected by Update, as if another bookmark already had it.
+const DuplicateURL = "https://duplicate.example.com"
+
 type BookmarkModel struct{}
 
 func (m *BookmarkModel) Insert(userID int, b *models.Bookmark) (int, error) {
@@ -38,6 +41,16 @@ func (m *BookmarkModel) Latest(userID, limit int) ([]*models.Bookmark, error) {
 		return []*models.Bookmark{mockBookmark}, nil
 	}
 	return []*models.Bookmark{}, nil
+}
+
+func (m *BookmarkModel) Update(userID int, b *models.Bookmark) error {
+	if _, err := m.Get(userID, b.ID); err != nil {
+		return err
+	}
+	if b.URL == DuplicateURL {
+		return models.ErrDuplicateURL
+	}
+	return nil
 }
 
 func (m *BookmarkModel) ToggleFavourite(userID, id int) error {

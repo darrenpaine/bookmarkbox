@@ -12,9 +12,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// Bookmark creation form - with field validation
-type bookmarkCreateForm struct {
+// Bookmark add and edit form - with field validation
+type bookmarkForm struct {
 	validator.Validator `form:"-"`
+	Action              string `form:"-"` // where the form posts to
 	URL                 string `form:"url"`
 	Title               string `form:"title"`
 	Description         string `form:"description"`
@@ -99,25 +100,11 @@ func (app *application) bookmarkView(w http.ResponseWriter, r *http.Request) {
 	app.render(w, http.StatusOK, "view.tmpl", data)
 }
 
-// Render the bookmark Create form.
-func (app *application) bookmarkCreateShowForm(w http.ResponseWriter, r *http.Request) {
-	data := app.newTemplateData(r)
-	data.Form = bookmarkCreateForm{}
-	app.render(w, http.StatusOK, "create.tmpl", data)
-}
-
-// Validate and save a new bookmark, then show it.
-func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Request) {
-	var form bookmarkCreateForm
-	err := app.decodePostForm(w, r, &form)
-	if err != nil {
-		app.clientError(w, http.StatusBadRequest)
-		return
-	}
+// validate checks the form's fields, after trimming the URL and title.
+func (form *bookmarkForm) validate() {
 	form.URL = strings.TrimSpace(form.URL)
 	form.Title = strings.TrimSpace(form.Title)
 
-	// VALIDATION:
 	form.CheckField(validator.NotBlank(form.URL), "url", "This field cannot be blank")
 	form.CheckField(validator.WebURL(form.URL), "url", "This must be a full http:// or https:// address")
 	form.CheckField(validator.MaxChars(form.URL, models.MaxURLChars), "url", tooLong(models.MaxURLChars))
@@ -128,14 +115,11 @@ func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Reques
 	for _, tag := range models.NormaliseTags(strings.Split(form.Tags, ",")) {
 		form.CheckField(validator.MaxChars(tag, models.MaxTagNameChars), "tags", fmt.Sprintf("Each tag must be %d characters or fewer", models.MaxTagNameChars))
 	}
-	if !form.Valid() {
-		data := app.newTemplateData(r)
-		data.Form = form
-		app.render(w, http.StatusUnprocessableEntity, "create.tmpl", data)
-		return
-	}
+}
 
-	id, err := app.bookmarks.Insert(app.authenticatedUserID(r), &models.Bookmark{
+// bookmark builds the model value from the form's fields.
+func (form *bookmarkForm) bookmark() *models.Bookmark {
+	return &models.Bookmark{
 		URL:         form.URL,
 		Title:       form.Title,
 		Description: form.Description,
@@ -143,13 +127,44 @@ func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Reques
 		Favourite:   form.Favourite,
 		ReadLater:   form.ReadLater,
 		Tags:        strings.Split(form.Tags, ","),
-	})
+	}
+}
+
+// renderBookmarkFormError re-displays a form with a validation error status.
+func (app *application) renderBookmarkFormError(w http.ResponseWriter, r *http.Request, page string, form bookmarkForm) {
+	data := app.newTemplateData(r)
+	data.Form = form
+	app.render(w, http.StatusUnprocessableEntity, page, data)
+}
+
+// Render the bookmark Create form.
+func (app *application) bookmarkCreateShowForm(w http.ResponseWriter, r *http.Request) {
+	data := app.newTemplateData(r)
+	data.Form = bookmarkForm{Action: "/bookmarks/new"}
+	app.render(w, http.StatusOK, "create.tmpl", data)
+}
+
+// Validate and save a new bookmark, then show it.
+func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Request) {
+	form := bookmarkForm{}
+	err := app.decodePostForm(w, r, &form)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+	form.Action = "/bookmarks/new"
+
+	form.validate()
+	if !form.Valid() {
+		app.renderBookmarkFormError(w, r, "create.tmpl", form)
+		return
+	}
+
+	id, err := app.bookmarks.Insert(app.authenticatedUserID(r), form.bookmark())
 	if err != nil {
 		if errors.Is(err, models.ErrDuplicateURL) {
 			form.AddFieldError("url", "You have already saved this address")
-			data := app.newTemplateData(r)
-			data.Form = form
-			app.render(w, http.StatusUnprocessableEntity, "create.tmpl", data)
+			app.renderBookmarkFormError(w, r, "create.tmpl", form)
 		} else {
 			app.serverError(w, err)
 		}
@@ -157,6 +172,77 @@ func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Reques
 	}
 
 	app.sessionManager.Put(r.Context(), "flash", "Bookmark saved!")
+	http.Redirect(w, r, fmt.Sprintf("/bookmarks/%d", id), http.StatusSeeOther)
+}
+
+// Render the edit form, filled in from one of the user's bookmarks.
+func (app *application) bookmarkEditShowForm(w http.ResponseWriter, r *http.Request) {
+	id, ok := bookmarkID(r)
+	if !ok {
+		app.notFound(w)
+		return
+	}
+	bookmark, err := app.bookmarks.Get(app.authenticatedUserID(r), id)
+	if err != nil {
+		if errors.Is(err, models.ErrNoRecord) {
+			app.notFound(w)
+		} else {
+			app.serverError(w, err)
+		}
+		return
+	}
+	data := app.newTemplateData(r)
+	data.Form = bookmarkForm{
+		Action:      fmt.Sprintf("/bookmarks/%d/edit", id),
+		URL:         bookmark.URL,
+		Title:       bookmark.Title,
+		Description: bookmark.Description,
+		Notes:       bookmark.Notes,
+		Tags:        strings.Join(bookmark.Tags, ", "),
+		Favourite:   bookmark.Favourite,
+		ReadLater:   bookmark.ReadLater,
+	}
+	app.render(w, http.StatusOK, "edit.tmpl", data)
+}
+
+// Validate and save changes to a bookmark, then show it.
+func (app *application) bookmarkEditPost(w http.ResponseWriter, r *http.Request) {
+	id, ok := bookmarkID(r)
+	if !ok {
+		app.notFound(w)
+		return
+	}
+	form := bookmarkForm{}
+	err := app.decodePostForm(w, r, &form)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+	form.Action = fmt.Sprintf("/bookmarks/%d/edit", id)
+
+	form.validate()
+	if !form.Valid() {
+		app.renderBookmarkFormError(w, r, "edit.tmpl", form)
+		return
+	}
+
+	bookmark := form.bookmark()
+	bookmark.ID = id
+	err = app.bookmarks.Update(app.authenticatedUserID(r), bookmark)
+	if err != nil {
+		switch {
+		case errors.Is(err, models.ErrNoRecord):
+			app.notFound(w)
+		case errors.Is(err, models.ErrDuplicateURL):
+			form.AddFieldError("url", "You have already saved this address")
+			app.renderBookmarkFormError(w, r, "edit.tmpl", form)
+		default:
+			app.serverError(w, err)
+		}
+		return
+	}
+
+	app.sessionManager.Put(r.Context(), "flash", "Bookmark updated!")
 	http.Redirect(w, r, fmt.Sprintf("/bookmarks/%d", id), http.StatusSeeOther)
 }
 

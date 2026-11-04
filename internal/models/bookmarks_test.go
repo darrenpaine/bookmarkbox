@@ -115,6 +115,84 @@ func TestBookmarkModelToggleAndDelete(t *testing.T) {
 	assert.Equal(t, links, 0)
 }
 
+func TestBookmarkModelUpdate(t *testing.T) {
+	db := newTestDB(t)
+	m := BookmarkModel{DB: db}
+
+	other, err := m.Insert(1, &Bookmark{URL: "https://sqlite.org", Title: "SQLite", Tags: []string{"go", "databases"}})
+	assert.NilError(t, err)
+	before, err := m.Get(1, 1)
+	assert.NilError(t, err)
+	_, err = db.Exec("UPDATE bookmarks SET favicon = 'icon.png' WHERE id = 1")
+	assert.NilError(t, err)
+	var goTagID int
+	assert.NilError(t, db.QueryRow("SELECT id FROM tags WHERE name = 'go'").Scan(&goTagID))
+
+	t.Run("Changes fields and tags", func(t *testing.T) {
+		err := m.Update(1, &Bookmark{
+			ID: 1, URL: "https://go.dev/doc/effective_go/", Title: "New title", Description: "New description",
+			Notes: "Notes", Favourite: true, ReadLater: true, Tags: []string{"GO", "style"},
+		})
+		assert.NilError(t, err)
+		b, err := m.Get(1, 1)
+		assert.NilError(t, err)
+		assert.Equal(t, b.Title, "New title")
+		assert.Equal(t, b.Description, "New description")
+		assert.Equal(t, b.Notes, "Notes")
+		assert.Equal(t, b.Favourite, true)
+		assert.Equal(t, b.ReadLater, true)
+		assert.Equal(t, b.Created.Equal(before.Created), true)
+		// The same site after normalising, so the favicon stays.
+		assert.Equal(t, b.Favicon, "icon.png")
+		if !slices.Equal(b.Tags, []string{"go", "style"}) {
+			t.Errorf("tags: got %q", b.Tags)
+		}
+	})
+
+	t.Run("Kept tag keeps its ID", func(t *testing.T) {
+		var id int
+		assert.NilError(t, db.QueryRow("SELECT id FROM tags WHERE name = 'go'").Scan(&id))
+		assert.Equal(t, id, goTagID)
+	})
+
+	t.Run("New URL clears favicon", func(t *testing.T) {
+		assert.NilError(t, m.Update(1, &Bookmark{ID: 1, URL: "https://go.dev/blog", Title: "Blog"}))
+		b, err := m.Get(1, 1)
+		assert.NilError(t, err)
+		assert.Equal(t, b.Favicon, "")
+		assert.Equal(t, len(b.Tags), 0)
+	})
+
+	t.Run("Tag only used here is removed", func(t *testing.T) {
+		if got := tagNames(t, db, 1); !slices.Equal(got, []string{"databases", "go"}) {
+			t.Errorf("tags: got %q", got)
+		}
+	})
+
+	t.Run("Saving without changes", func(t *testing.T) {
+		assert.NilError(t, m.Update(1, &Bookmark{ID: 1, URL: "https://go.dev/blog", Title: "Blog"}))
+	})
+
+	t.Run("Duplicate URL changes nothing", func(t *testing.T) {
+		err := m.Update(1, &Bookmark{ID: 1, URL: "https://SQLite.org/", Title: "Changed", Tags: []string{"new"}})
+		assert.Equal(t, errors.Is(err, ErrDuplicateURL), true)
+		b, err := m.Get(1, 1)
+		assert.NilError(t, err)
+		assert.Equal(t, b.Title, "Blog")
+		if got := tagNames(t, db, 1); slices.Contains(got, "new") {
+			t.Errorf("tag was saved: %q", got)
+		}
+	})
+
+	t.Run("Other user", func(t *testing.T) {
+		err := m.Update(2, &Bookmark{ID: other, URL: "https://hacked.example.com", Title: "Hacked"})
+		assert.Equal(t, errors.Is(err, ErrNoRecord), true)
+		b, err := m.Get(1, other)
+		assert.NilError(t, err)
+		assert.Equal(t, b.Title, "SQLite")
+	})
+}
+
 func tagNames(t *testing.T, db *sql.DB, userID int) []string {
 	rows, err := db.Query("SELECT name FROM tags WHERE user_id = ? ORDER BY name", userID)
 	assert.NilError(t, err)

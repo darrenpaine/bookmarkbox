@@ -15,6 +15,7 @@ import (
 type BookmarkModelInterface interface {
 	Insert(userID int, b *Bookmark) (int, error)
 	Get(userID, id int) (*Bookmark, error)
+	Update(userID int, b *Bookmark) error
 	Latest(userID, limit int) ([]*Bookmark, error)
 	ToggleFavourite(userID, id int) error
 	Delete(userID, id int) error
@@ -98,27 +99,87 @@ func (m *BookmarkModel) Insert(userID int, b *Bookmark) (int, error) {
 		return 0, err
 	}
 
-	for _, name := range NormaliseTags(b.Tags) {
-		// Create the tag if this user doesn't have it yet, then link it.
-		_, err = tx.ExecContext(ctx,
-			`INSERT INTO tags (user_id, name) VALUES (?, ?) ON CONFLICT (user_id, name) DO NOTHING`,
-			userID, name)
-		if err != nil {
-			return 0, err
-		}
-		_, err = tx.ExecContext(ctx,
-			`INSERT INTO bookmark_tags (bookmark_id, tag_id)
-			 SELECT ?, id FROM tags WHERE user_id = ? AND name = ?`,
-			id, userID, name)
-		if err != nil {
-			return 0, err
-		}
+	if err = addTags(ctx, tx, userID, int(id), NormaliseTags(b.Tags)); err != nil {
+		return 0, err
 	}
 
 	if err = tx.Commit(); err != nil {
 		return 0, err
 	}
 	return int(id), nil
+}
+
+// addTags links a bookmark to the named tags, creating any the user doesn't
+// have yet. Links that already exist are left alone.
+func addTags(ctx context.Context, tx *sql.Tx, userID, bookmarkID int, names []string) error {
+	for _, name := range names {
+		_, err := tx.ExecContext(ctx,
+			`INSERT INTO tags (user_id, name) VALUES (?, ?) ON CONFLICT (user_id, name) DO NOTHING`,
+			userID, name)
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx,
+			`INSERT OR IGNORE INTO bookmark_tags (bookmark_id, tag_id)
+			 SELECT ?, id FROM tags WHERE user_id = ? AND name = ?`,
+			bookmarkID, userID, name)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Update saves changes to one of the user's bookmarks, in one transaction.
+// The ID comes from b; the saved date never changes. The favicon is cleared if
+// the normalised URL changes, because it belonged to the old site. Returns
+// ErrNoRecord if the user has no such bookmark, and ErrDuplicateURL if the new
+// URL is a Duplicate of another of their bookmarks.
+func (m *BookmarkModel) Update(userID int, b *Bookmark) error {
+	normalisedURL, err := NormaliseURL(b.URL)
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	tx, err := m.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // no-op after Commit
+
+	stmt := `UPDATE bookmarks
+	         SET url = ?, normalised_url = ?, title = ?, description = ?, notes = ?,
+	             favourite = ?, read_later = ?,
+	             favicon = CASE WHEN normalised_url = ? THEN favicon ELSE '' END
+	         WHERE user_id = ? AND id = ?`
+	result, err := tx.ExecContext(ctx, stmt, b.URL, normalisedURL, b.Title, b.Description, b.Notes,
+		b.Favourite, b.ReadLater, normalisedURL, userID, b.ID)
+	if isUniqueViolation(err, "bookmarks.user_id, bookmarks.normalised_url") {
+		return ErrDuplicateURL
+	}
+	if err = checkAffected(result, err); err != nil {
+		return err
+	}
+
+	// Add the new links before removing old ones, and keep links that stay, so
+	// that a tag used only here keeps its ID.
+	names := NormaliseTags(b.Tags)
+	if err = addTags(ctx, tx, userID, b.ID, names); err != nil {
+		return err
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(names)), ",")
+	args := []any{b.ID, userID}
+	for _, name := range names {
+		args = append(args, name)
+	}
+	stmt = `DELETE FROM bookmark_tags
+	        WHERE bookmark_id = ?
+	          AND tag_id NOT IN (SELECT id FROM tags WHERE user_id = ? AND name IN (` + placeholders + `))`
+	if _, err = tx.ExecContext(ctx, stmt, args...); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 // Columns selected for a Bookmark, with the tags joined into one
