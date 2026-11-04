@@ -413,6 +413,73 @@ func TestBookmarkEdit(t *testing.T) {
 	})
 }
 
+func TestTags(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+
+	t.Run("Unauthenticated redirects to login", func(t *testing.T) {
+		code, header, _ := ts.get(t, "/tags")
+		assert.Equal(t, code, http.StatusSeeOther)
+		assert.StringContains(t, header.Get("Location"), "/user/login")
+	})
+
+	ts.login(t)
+
+	t.Run("List", func(t *testing.T) {
+		code, _, body := ts.get(t, "/tags")
+		assert.Equal(t, code, http.StatusOK)
+		assert.StringContains(t, body, "<form action='/tags/2/rename' method='POST'>")
+	})
+
+	tests := []struct {
+		name     string
+		path     string
+		newName  string
+		confirm  string
+		wantCode int
+		wantBody string
+	}{
+		{"Rename", "/tags/1/rename", "documentation", "", http.StatusSeeOther, ""},
+		{"Same name after normalising", "/tags/1/rename", " DOCS ", "", http.StatusSeeOther, ""},
+		{"Blank", "/tags/1/rename", "  ", "", http.StatusUnprocessableEntity, "cannot be blank"},
+		{"Comma", "/tags/1/rename", "a,b", "", http.StatusUnprocessableEntity, "cannot contain a comma"},
+		{"Too long", "/tags/1/rename", strings.Repeat("a", 51), "", http.StatusUnprocessableEntity, "50 characters or fewer"},
+		{"Existing name asks first", "/tags/1/rename", "go", "", http.StatusOK, "will merge into it, affecting\n    1 bookmark."},
+		{"Plural count", "/tags/2/rename", "docs", "", http.StatusOK, "3 bookmarks."},
+		{"Confirmed merge", "/tags/1/rename", "go", "true", http.StatusSeeOther, ""},
+		{"Other user's tag", "/tags/9/rename", "x", "", http.StatusNotFound, ""},
+		{"Invalid ID", "/tags/foo/rename", "x", "", http.StatusNotFound, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			form := url.Values{}
+			form.Add("name", tt.newName)
+			if tt.confirm != "" {
+				form.Add("confirm", tt.confirm)
+			}
+			code, _, body := ts.postForm(t, tt.path, form)
+			assert.Equal(t, code, tt.wantCode)
+			if tt.wantBody != "" {
+				assert.StringContains(t, body, tt.wantBody)
+			}
+		})
+	}
+
+	t.Run("Confirmation posts the merge", func(t *testing.T) {
+		form := url.Values{}
+		form.Add("name", "go")
+		_, _, body := ts.postForm(t, "/tags/1/rename", form)
+		assert.StringContains(t, body, "<input type='hidden' name='confirm' value='true'>")
+		assert.StringContains(t, body, "<input type='hidden' name='name' value='go'>")
+	})
+
+	t.Run("Cross origin post blocked", func(t *testing.T) {
+		code, _, _ := ts.postFormCrossOrigin(t, "/tags/1/rename", url.Values{})
+		assert.Equal(t, code, http.StatusForbidden)
+	})
+}
+
 func TestBookmarkCreateTextLimits(t *testing.T) {
 	app := newTestApplication(t)
 	ts := newTestServer(t, app.routes())

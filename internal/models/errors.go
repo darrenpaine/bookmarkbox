@@ -13,6 +13,8 @@ var (
 	ErrDuplicateEmail = errors.New("models: duplicate email")
 	// The user already has a bookmark with this normalised URL
 	ErrDuplicateURL = errors.New("models: duplicate url")
+	// The user already has a tag with this name
+	ErrDuplicateTag = errors.New("models: duplicate tag")
 )
 
 // isUniqueViolation reports whether err is an SQLite UNIQUE constraint failure

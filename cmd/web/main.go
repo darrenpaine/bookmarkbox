@@ -26,6 +26,7 @@ type application struct {
 	errorLog       *log.Logger
 	infoLog        *log.Logger
 	bookmarks      models.BookmarkModelInterface
+	tags           models.TagModelInterface
 	users          models.UserModelInterface
 	templateCache  map[string]*template.Template
 	router         *chi.Mux
@@ -68,6 +69,7 @@ func main() {
 		errorLog:       errorLog,
 		infoLog:        infoLog,
 		bookmarks:      &models.BookmarkModel{DB: db},
+		tags:           &models.TagModel{DB: db},
 		users:          &models.UserModel{DB: db},
 		templateCache:  templateCache,
 		router:         chi.NewRouter(),

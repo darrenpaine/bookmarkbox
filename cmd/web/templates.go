@@ -20,6 +20,9 @@ type templateData struct {
 	CurrentYear     int
 	Bookmark        *models.Bookmark
 	Bookmarks       []*models.Bookmark
+	Tag             *models.Tag
+	Tags            []*models.Tag
+	MergeInto       string // name of the tag a rename would merge into
 	Form            any
 	Flash           string
 	IsAuthenticated bool // Has an authenticated ID

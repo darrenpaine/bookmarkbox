@@ -25,6 +25,12 @@ type bookmarkForm struct {
 	ReadLater           bool   `form:"read_later"`
 }
 
+// Tag rename form. Confirm is set by the merge confirmation page.
+type tagRenameForm struct {
+	Name    string `form:"name"`
+	Confirm bool   `form:"confirm"`
+}
+
 // User Signup form - with field validation
 type userSignupForm struct {
 	validator.Validator `form:"-"`
@@ -73,15 +79,15 @@ func tooLong(limit int) string {
 	return fmt.Sprintf("This field cannot be more than %d characters long", limit)
 }
 
-// bookmarkID reads the {id} URL parameter; ok is false if it isn't a positive integer.
-func bookmarkID(r *http.Request) (int, bool) {
+// urlID reads the {id} URL parameter; ok is false if it isn't a positive integer.
+func urlID(r *http.Request) (int, bool) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	return id, err == nil && id > 0
 }
 
 // Render one of the user's bookmarks. Other users' bookmarks are 404s.
 func (app *application) bookmarkView(w http.ResponseWriter, r *http.Request) {
-	id, ok := bookmarkID(r)
+	id, ok := urlID(r)
 	if !ok {
 		app.notFound(w)
 		return
@@ -177,7 +183,7 @@ func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Reques
 
 // Render the edit form, filled in from one of the user's bookmarks.
 func (app *application) bookmarkEditShowForm(w http.ResponseWriter, r *http.Request) {
-	id, ok := bookmarkID(r)
+	id, ok := urlID(r)
 	if !ok {
 		app.notFound(w)
 		return
@@ -207,7 +213,7 @@ func (app *application) bookmarkEditShowForm(w http.ResponseWriter, r *http.Requ
 
 // Validate and save changes to a bookmark, then show it.
 func (app *application) bookmarkEditPost(w http.ResponseWriter, r *http.Request) {
-	id, ok := bookmarkID(r)
+	id, ok := urlID(r)
 	if !ok {
 		app.notFound(w)
 		return
@@ -248,7 +254,7 @@ func (app *application) bookmarkEditPost(w http.ResponseWriter, r *http.Request)
 
 // Toggle the favourite star, then go back to the bookmark.
 func (app *application) bookmarkFavouritePost(w http.ResponseWriter, r *http.Request) {
-	id, ok := bookmarkID(r)
+	id, ok := urlID(r)
 	if !ok {
 		app.notFound(w)
 		return
@@ -267,7 +273,7 @@ func (app *application) bookmarkFavouritePost(w http.ResponseWriter, r *http.Req
 
 // Delete a bookmark, then go to the home page.
 func (app *application) bookmarkDeletePost(w http.ResponseWriter, r *http.Request) {
-	id, ok := bookmarkID(r)
+	id, ok := urlID(r)
 	if !ok {
 		app.notFound(w)
 		return
@@ -283,6 +289,99 @@ func (app *application) bookmarkDeletePost(w http.ResponseWriter, r *http.Reques
 	}
 	app.sessionManager.Put(r.Context(), "flash", "Bookmark deleted.")
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// Render the user's tags, with a rename box for each.
+func (app *application) tagList(w http.ResponseWriter, r *http.Request) {
+	app.renderTagList(w, r, http.StatusOK, app.newTemplateData(r))
+}
+
+// renderTagList loads the tags and renders the list with the given status.
+func (app *application) renderTagList(w http.ResponseWriter, r *http.Request, status int, data *templateData) {
+	tags, err := app.tags.List(app.authenticatedUserID(r))
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+	data.Tags = tags
+	app.render(w, status, "tags.tmpl", data)
+}
+
+// Rename a tag. Renaming onto an existing tag shows a confirmation page, which
+// posts back here with Confirm set to merge the two.
+func (app *application) tagRenamePost(w http.ResponseWriter, r *http.Request) {
+	id, ok := urlID(r)
+	if !ok {
+		app.notFound(w)
+		return
+	}
+	var form tagRenameForm
+	err := app.decodePostForm(w, r, &form)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+
+	userID := app.authenticatedUserID(r)
+	tag, err := app.tags.Get(userID, id)
+	if err != nil {
+		if errors.Is(err, models.ErrNoRecord) {
+			app.notFound(w)
+		} else {
+			app.serverError(w, err)
+		}
+		return
+	}
+
+	// Commas split Tags on the bookmark form, so they can't be in a name.
+	names := models.NormaliseTags([]string{form.Name})
+	problem := ""
+	switch {
+	case len(names) == 0:
+		problem = "A tag name cannot be blank"
+	case strings.Contains(form.Name, ","):
+		problem = "A tag name cannot contain a comma"
+	case !validator.MaxChars(names[0], models.MaxTagNameChars):
+		problem = fmt.Sprintf("A tag name must be %d characters or fewer", models.MaxTagNameChars)
+	}
+	if problem != "" {
+		data := app.newTemplateData(r)
+		data.Flash = problem
+		app.renderTagList(w, r, http.StatusUnprocessableEntity, data)
+		return
+	}
+	name := names[0]
+	if name == tag.Name {
+		http.Redirect(w, r, "/tags", http.StatusSeeOther)
+		return
+	}
+
+	if form.Confirm {
+		err = app.tags.Merge(userID, id, name)
+	} else {
+		err = app.tags.Rename(userID, id, name)
+	}
+	if err != nil {
+		switch {
+		case errors.Is(err, models.ErrDuplicateTag):
+			data := app.newTemplateData(r)
+			data.Tag = tag
+			data.MergeInto = name
+			app.render(w, http.StatusOK, "tagmerge.tmpl", data)
+		case errors.Is(err, models.ErrNoRecord):
+			app.notFound(w)
+		default:
+			app.serverError(w, err)
+		}
+		return
+	}
+
+	if form.Confirm {
+		app.sessionManager.Put(r.Context(), "flash", "Tags merged.")
+	} else {
+		app.sessionManager.Put(r.Context(), "flash", "Tag renamed.")
+	}
+	http.Redirect(w, r, "/tags", http.StatusSeeOther)
 }
 
 // Show a form to create a user

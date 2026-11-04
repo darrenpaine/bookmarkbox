@@ -1,0 +1,18 @@
+{{define "title"}}Merge Tags{{end}}
+{{define "main"}}
+<h2>Merge tags?</h2>
+<p>
+    You already have a tag called <span class='tag'>{{.MergeInto}}</span>.
+    <span class='tag'>{{.Tag.Name}}</span> will merge into it, affecting
+    {{.Tag.BookmarkCount}} bookmark{{if ne .Tag.BookmarkCount 1}}s{{end}}.
+    This can't be undone.
+</p>
+<div class='actions'>
+    <form action='/tags/{{.Tag.ID}}/rename' method='POST'>
+        <input type='hidden' name='name' value='{{.MergeInto}}'>
+        <input type='hidden' name='confirm' value='true'>
+        <button>Confirm</button>
+    </form>
+    <a href='/tags'>Cancel</a>
+</div>
+{{end}}
