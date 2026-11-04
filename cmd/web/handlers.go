@@ -123,6 +123,21 @@ func (form *bookmarkForm) validate() {
 	}
 }
 
+// addSaveError shows a failed save on the form, and reports whether it could.
+func (form *bookmarkForm) addSaveError(err error) bool {
+	switch {
+	case errors.Is(err, models.ErrDuplicateURL):
+		form.AddFieldError("url", "You have already saved this address")
+	case errors.Is(err, models.ErrTagLimit):
+		form.AddFieldError("tags", "You have reached your limit of tags, so this can't add a new one")
+	case errors.Is(err, models.ErrBookmarkLimit):
+		form.AddNonFieldError("You have reached your limit of bookmarks")
+	default:
+		return false
+	}
+	return true
+}
+
 // bookmark builds the model value from the form's fields.
 func (form *bookmarkForm) bookmark() *models.Bookmark {
 	return &models.Bookmark{
@@ -168,8 +183,7 @@ func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Reques
 
 	id, err := app.bookmarks.Insert(app.authenticatedUserID(r), form.bookmark())
 	if err != nil {
-		if errors.Is(err, models.ErrDuplicateURL) {
-			form.AddFieldError("url", "You have already saved this address")
+		if form.addSaveError(err) {
 			app.renderBookmarkFormError(w, r, "create.tmpl", form)
 		} else {
 			app.serverError(w, err)
@@ -239,8 +253,7 @@ func (app *application) bookmarkEditPost(w http.ResponseWriter, r *http.Request)
 		switch {
 		case errors.Is(err, models.ErrNoRecord):
 			app.notFound(w)
-		case errors.Is(err, models.ErrDuplicateURL):
-			form.AddFieldError("url", "You have already saved this address")
+		case form.addSaveError(err):
 			app.renderBookmarkFormError(w, r, "edit.tmpl", form)
 		default:
 			app.serverError(w, err)
@@ -386,6 +399,15 @@ func (app *application) tagRenamePost(w http.ResponseWriter, r *http.Request) {
 
 // Show a form to create a user
 func (app *application) userSignupShowForm(w http.ResponseWriter, r *http.Request) {
+	open, err := app.users.SignupOpen()
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+	if !open {
+		app.render(w, http.StatusOK, "signupclosed.tmpl", app.newTemplateData(r))
+		return
+	}
 	data := app.newTemplateData(r)
 	data.Form = userSignupForm{}
 	app.render(w, http.StatusOK, "signup.tmpl", data)
@@ -393,8 +415,17 @@ func (app *application) userSignupShowForm(w http.ResponseWriter, r *http.Reques
 
 // Post method to create a user
 func (app *application) userSignupPost(w http.ResponseWriter, r *http.Request) {
+	open, err := app.users.SignupOpen()
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+	if !open {
+		app.render(w, http.StatusForbidden, "signupclosed.tmpl", app.newTemplateData(r))
+		return
+	}
 	var form userSignupForm
-	err := app.decodePostForm(w, r, &form)
+	err = app.decodePostForm(w, r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return
@@ -417,12 +448,16 @@ func (app *application) userSignupPost(w http.ResponseWriter, r *http.Request) {
 	// exists then add an error message to the form and re-display it.
 	err = app.users.Insert(form.Name, form.Email, form.Password)
 	if err != nil {
-		if errors.Is(err, models.ErrDuplicateEmail) {
+		switch {
+		case errors.Is(err, models.ErrDuplicateEmail):
 			form.AddFieldError("email", "Email address is already in use")
 			data := app.newTemplateData(r)
 			data.Form = form
 			app.render(w, http.StatusUnprocessableEntity, "signup.tmpl", data)
-		} else {
+		case errors.Is(err, models.ErrUserLimit):
+			// Someone else took the last place since the check above.
+			app.render(w, http.StatusForbidden, "signupclosed.tmpl", app.newTemplateData(r))
+		default:
 			app.serverError(w, err)
 		}
 		return

@@ -26,6 +26,7 @@ type templateData struct {
 	Form            any
 	Flash           string
 	IsAuthenticated bool // Has an authenticated ID
+	SignupOpen      bool // Set for logged-out visitors, to show the Signup link
 	User            *models.User
 }
 

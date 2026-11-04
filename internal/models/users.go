@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
@@ -15,6 +16,7 @@ type UserModelInterface interface {
 	Exists(id int) (bool, error)
 	Get(id int) (*User, error)
 	PasswordUpdate(id int, currentPassword, newPassword string) error
+	SignupOpen() (bool, error)
 }
 
 // User type aligned with the database "users" table.
@@ -27,12 +29,27 @@ type User struct {
 	Created        time.Time
 }
 
-// UserModel type wraps a database connection pool.
+// UserModel type wraps a database connection pool. Signup closes at MaxUsers
+// users; 0 means unlimited.
 type UserModel struct {
-	DB *sql.DB
+	DB       *sql.DB
+	MaxUsers int
 }
 
-// Add a new record to the "users" table.
+// SignupOpen reports whether another user can sign up.
+func (m *UserModel) SignupOpen() (bool, error) {
+	if m.MaxUsers <= 0 {
+		return true, nil
+	}
+	var count int
+	if err := m.DB.QueryRow("SELECT count(*) FROM users").Scan(&count); err != nil {
+		return false, err
+	}
+	return count < m.MaxUsers, nil
+}
+
+// Add a new record to the "users" table. Returns ErrDuplicateEmail, or
+// ErrUserLimit if signup is full.
 func (m *UserModel) Insert(name, email, password string) error {
 	// Create a bcrypt hash of the plain-text password.
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
@@ -41,7 +58,14 @@ func (m *UserModel) Insert(name, email, password string) error {
 	}
 	stmt := `INSERT INTO users (name, email, hashed_password, created)
              VALUES(?, ?, ?, ?)`
-	_, err = m.DB.Exec(stmt, name, email, string(hashedPassword), time.Now().UTC())
+	ctx := context.Background()
+	tx, err := m.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // no-op after Commit
+
+	_, err = tx.ExecContext(ctx, stmt, name, email, string(hashedPassword), time.Now().UTC())
 	if err != nil {
 		// The email column is UNIQUE (and case-insensitive).
 		if isUniqueViolation(err, "users.email") {
@@ -49,7 +73,14 @@ func (m *UserModel) Insert(name, email, password string) error {
 		}
 		return err
 	}
-	return nil
+	over, err := overLimit(ctx, tx, m.MaxUsers, "SELECT count(*) FROM users")
+	if err != nil {
+		return err
+	}
+	if over {
+		return ErrUserLimit
+	}
+	return tx.Commit()
 }
 
 // Check if the credentials match a user.

@@ -3,7 +3,10 @@ package models
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"slices"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/darrenpaine/bookmarkbox/internal/assert"
@@ -190,6 +193,109 @@ func TestBookmarkModelUpdate(t *testing.T) {
 		b, err := m.Get(1, other)
 		assert.NilError(t, err)
 		assert.Equal(t, b.Title, "SQLite")
+	})
+}
+
+func TestBookmarkLimit(t *testing.T) {
+	db := newTestDB(t)
+	m := BookmarkModel{DB: db, MaxBookmarks: 2}
+
+	_, err := m.Insert(1, &Bookmark{URL: "https://a.example.com", Title: "A"})
+	assert.NilError(t, err)
+
+	_, err = m.Insert(1, &Bookmark{URL: "https://b.example.com", Title: "B", Tags: []string{"new"}})
+	assert.Equal(t, errors.Is(err, ErrBookmarkLimit), true)
+
+	// Nothing from the failed save remains.
+	list, err := m.Latest(1, 10)
+	assert.NilError(t, err)
+	assert.Equal(t, len(list), 2)
+	if got := tagNames(t, db, 1); slices.Contains(got, "new") {
+		t.Errorf("tag was saved: %q", got)
+	}
+
+	t.Run("Per user", func(t *testing.T) {
+		_, err := m.Insert(2, &Bookmark{URL: "https://b.example.com", Title: "B"})
+		assert.NilError(t, err)
+	})
+
+	t.Run("Freed by deleting", func(t *testing.T) {
+		assert.NilError(t, m.Delete(1, 1))
+		_, err := m.Insert(1, &Bookmark{URL: "https://b.example.com", Title: "B"})
+		assert.NilError(t, err)
+	})
+}
+
+func TestBookmarkLimitConcurrent(t *testing.T) {
+	db := newTestDB(t)
+	m := BookmarkModel{DB: db, MaxBookmarks: 6} // one is already seeded
+
+	var wg sync.WaitGroup
+	var saved, refused atomic.Int64
+	for i := range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := m.Insert(1, &Bookmark{URL: fmt.Sprintf("https://%d.example.com", i), Title: "T"})
+			switch {
+			case err == nil:
+				saved.Add(1)
+			case errors.Is(err, ErrBookmarkLimit):
+				refused.Add(1)
+			default:
+				t.Errorf("unexpected error: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	assert.Equal(t, saved.Load(), int64(5))
+	assert.Equal(t, refused.Load(), int64(15))
+}
+
+func TestTagLimit(t *testing.T) {
+	db := newTestDB(t)
+	m := BookmarkModel{DB: db, MaxTags: 2}
+
+	id, err := m.Insert(1, &Bookmark{URL: "https://a.example.com", Title: "A", Tags: []string{"only-here"}})
+	assert.NilError(t, err)
+	// Alice is now at the limit, with go and only-here.
+
+	t.Run("New tag refused", func(t *testing.T) {
+		_, err := m.Insert(1, &Bookmark{URL: "https://b.example.com", Title: "B", Tags: []string{"third"}})
+		assert.Equal(t, errors.Is(err, ErrTagLimit), true)
+		list, err := m.Latest(1, 10)
+		assert.NilError(t, err)
+		assert.Equal(t, len(list), 2)
+	})
+
+	t.Run("Existing tags are fine", func(t *testing.T) {
+		_, err := m.Insert(1, &Bookmark{URL: "https://c.example.com", Title: "C", Tags: []string{"go", "only-here"}})
+		assert.NilError(t, err)
+	})
+
+	t.Run("Swapping a tag at the limit works", func(t *testing.T) {
+		other, err := m.Insert(1, &Bookmark{URL: "https://d.example.com", Title: "D", Tags: []string{"go"}})
+		assert.NilError(t, err)
+		assert.NilError(t, m.Delete(1, other))
+		// only-here is on two bookmarks, so clear the one from the test above.
+		assert.NilError(t, m.Update(1, &Bookmark{ID: id + 1, URL: "https://c.example.com", Title: "C", Tags: []string{"go"}}))
+		assert.NilError(t, m.Update(1, &Bookmark{ID: id, URL: "https://a.example.com", Title: "A", Tags: []string{"swapped"}}))
+		if got := tagNames(t, db, 1); !slices.Equal(got, []string{"go", "swapped"}) {
+			t.Errorf("tags: got %q", got)
+		}
+	})
+
+	t.Run("Adding a tag by editing is refused", func(t *testing.T) {
+		err := m.Update(1, &Bookmark{ID: id, URL: "https://a.example.com", Title: "Changed", Tags: []string{"swapped", "third"}})
+		assert.Equal(t, errors.Is(err, ErrTagLimit), true)
+		b, err := m.Get(1, id)
+		assert.NilError(t, err)
+		assert.Equal(t, b.Title, "A")
+	})
+
+	t.Run("Over a lowered limit, edits still work", func(t *testing.T) {
+		lowered := BookmarkModel{DB: db, MaxTags: 1}
+		assert.NilError(t, lowered.Update(1, &Bookmark{ID: id, URL: "https://a.example.com", Title: "Renamed", Tags: []string{"swapped"}}))
 	})
 }
 

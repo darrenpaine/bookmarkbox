@@ -32,7 +32,7 @@ Because it uses one SQLite file, the app runs as one instance.
 The schema is in `migrations/00001_init.sql`. Tables: `users`, `sessions`, `bookmarks`, `tags` and `bookmark_tags`.
 
 - `users.email` is unique and case-insensitive.
-- `bookmarks` has `UNIQUE (user_id, url)`, and `tags` has `UNIQUE (user_id, name)`.
+- `bookmarks` has `UNIQUE (user_id, normalised_url)`, and `tags` has `UNIQUE (user_id, name)`.
 - Deletes cascade from `users` to `bookmarks` and `tags`, and from `bookmarks` and `tags` to `bookmark_tags`.
 - Foreign keys need turning on for every connection. The default DSN does this with `_pragma=foreign_keys(1)`, along with WAL mode and a busy timeout.
 
@@ -44,12 +44,12 @@ Every Bookmark method in `internal/models` takes the Owner's user ID and filters
 
 - Saved in one transaction with their Bookmark.
 - Tag names are trimmed, lower-cased, de-duplicated and sorted.
-- Updating a Bookmark (Planned) replaces its Tag links in one transaction.
+- Updating a Bookmark changes its Tag links in one transaction. Links that stay are kept, so a Tag keeps its ID.
 - Loaded as one comma-separated value, so a Tag name can never contain a comma.
 
-### URL normalisation (Planned)
+### URL normalisation
 
-A new `normalised_url` column replaces `url` in the unique constraint, and `url` keeps the address as entered, for display. All routes into the system share one normalising function.
+`normalised_url` is the unique key, and `url` keeps the address as entered, for display. Every route into the system uses `models.NormaliseURL`.
 
 | Changed | Kept as it is |
 |---|---|
@@ -60,11 +60,11 @@ A new `normalised_url` column replaces `url` in the unique constraint, and `url`
 
 The rule prefers an occasional near-duplicate to wrongly merging two pages.
 
-### Removing unused Tags (Planned)
+### Removing unused Tags
 
-When a Bookmark is updated or deleted, any Tag left with no Bookmarks is removed in the same transaction. Chip colours are derived from the Tag name, so nothing needs storing on a Tag.
+The `tags_remove_unused` trigger deletes a Tag when its last row leaves `bookmark_tags`. Foreign key cascades fire it too, so it covers every way a Bookmark can lose a Tag, including routes added later. Chip colours will be derived from the Tag name, so nothing needs storing on a Tag.
 
-### Renaming Tags (Planned)
+### Renaming Tags
 
 A rename updates the single row in `tags`, so every Bookmark follows without further changes. The new name is normalised like any other Tag name, and commas are rejected.
 
@@ -72,11 +72,22 @@ If the Owner already has a Tag with the new name, the page asks for confirmation
 
 A rename never creates a new Tag, so the Tag limit does not apply.
 
-### Limits (Planned)
+### Limits
 
-User, Bookmark and Tag limits are checked inside the insert itself (`INSERT ... SELECT ... WHERE count < limit`), so concurrent requests cannot pass them. The Tag limit applies only when a save would create a new Tag, and reusing an existing Tag is always allowed. A limit of `0` means unlimited. `MAX_USERS` counts every User, including the Demo User.
+User, Bookmark and Tag limits are checked by counting at the end of the write transaction, and rolling back if over. SQLite allows one writer at a time and the transaction has already written, so concurrent requests cannot pass a limit. A failed save changes nothing and shows an error on the form.
 
-To close signup on a running site, set `MAX_USERS` to the current number of Users.
+- A limit of `0` means unlimited.
+- The User limit counts every User, including the Demo User.
+- The Tag limit is checked only when a save creates a new Tag, and after old links are removed. Swapping one Tag for another at the limit works, and someone over a lowered limit can still edit their Bookmarks.
+- To close signup on a running site, set the User limit to the current number of Users.
+
+When signup is full, logged-out pages hide the Signup link and `/user/signup` shows "Signup is closed". A POST that arrives anyway is refused with a 403.
+
+### Text limits
+
+Maximum lengths are shared constants in `internal/models`: title 200 characters, URL and description 2,000, notes 10,000, Tag name 50. Handlers validate against them, and the importer and API will use the same constants. There are no database `CHECK` rules.
+
+Form posts are limited to 1 MB in `decodePostForm`. File uploads in step 6 will need their own larger limit.
 
 ## Web pages
 
@@ -89,11 +100,11 @@ To close signup on a running site, set `MAX_USERS` to the current number of User
 | `POST /user/logout` | Logged in | Log out |
 | `GET, POST /bookmarks/new` | Logged in | Add a Bookmark |
 | `GET /bookmarks/{id}` | Owner | View a Bookmark |
-| `GET, POST /bookmarks/{id}/edit` | Owner | Update a Bookmark (Planned) |
+| `GET, POST /bookmarks/{id}/edit` | Owner | Update a Bookmark |
 | `POST /bookmarks/{id}/favourite` | Owner | Toggle Favourite |
 | `POST /bookmarks/{id}/delete` | Owner | Delete a Bookmark |
-| `GET /tags` | Logged in | List the User's Tags (Planned) |
-| `POST /tags/{id}/rename` | Owner | Rename or merge a Tag (Planned) |
+| `GET /tags` | Logged in | List the User's Tags |
+| `POST /tags/{id}/rename` | Owner | Rename or merge a Tag |
 | `GET /account/view` | Logged in | Account details |
 | `GET, POST /account/password/update` | Logged in | Change password |
 | `GET /ping` | Public | Health check, without a session |
@@ -150,7 +161,7 @@ Routes sit under `/api/v1`: create a Bookmark, list Tags, "is this URL already s
 
 ## Configuration (Planned)
 
-Existing flags stay for local use, with environment variables setting their defaults. Today the app has only `-addr`, `-dsn`, `-debug` and `-https`, and `-https` also sets the cookie's Secure flag.
+Existing flags stay for local use, with environment variables setting their defaults. Today the app has `-addr`, `-dsn`, `-debug`, `-https`, `-max-users` (default `1`), `-max-bookmarks` and `-max-tags` (default `0`), and `-https` also sets the cookie's Secure flag. `make run` passes `-max-users 0`.
 
 | Variable | Default | Purpose |
 |---|---|---|

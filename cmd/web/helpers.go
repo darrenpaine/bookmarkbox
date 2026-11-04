@@ -65,11 +65,20 @@ func (app *application) render(w http.ResponseWriter, status int, page string, d
 
 // Helper to initialise template data.
 func (app *application) newTemplateData(r *http.Request) *templateData {
-	return &templateData{
+	data := &templateData{
 		CurrentYear:     time.Now().Year(),
 		Flash:           app.sessionManager.PopString(r.Context(), "flash"),
 		IsAuthenticated: app.isAuthenticated(r),
 	}
+	// Only logged-out pages show the Signup link. A failed check just hides it.
+	if !data.IsAuthenticated {
+		open, err := app.users.SignupOpen()
+		if err != nil {
+			app.errorLog.Print(err)
+		}
+		data.SignupOpen = open
+	}
+	return data
 }
 
 // Helper to decode form data into the dst.

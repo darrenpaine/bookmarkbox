@@ -106,7 +106,9 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 ## Limits and safety
 
 - A configurable maximum number of Users, of Bookmarks per User and of Tags per User. Limits hold even when two requests arrive together.
-- Text fields are limited: URL and description to 2,000 characters, notes to 10,000, title to 200.
+- When signup is full, the Signup link is hidden and the signup page says it is closed.
+- Text fields are limited: URL and description to 2,000 characters, notes to 10,000, title to 200, Tag name to 50.
+- Form posts are limited to 1 MB.
 - Login and signup are rate limited per IP address, to about 10 attempts a minute.
 - Metadata fetching does not reach private or loopback addresses by default. Self-hosters can opt out; the demo cannot.
 - Requests from other sites cannot act on a logged-in User's behalf.
@@ -116,8 +118,8 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 | # | Step | Status |
 |---|---|---|
 | 1 | **Foundations:** rename, SQLite, migrations, Bookmarks and Tags | Done |
-| 2 | **Model fixes and editing:** update Bookmarks, rename Tags, Duplicates by normalised URL, remove unused Tags, text limits, User, Bookmark and Tag limits | Next |
-| 3 | **Packaging:** environment config, `slog`, Dockerfile, compose, CI | Planned |
+| 2 | **Model fixes and editing:** update Bookmarks, rename Tags, Duplicates by normalised URL, remove unused Tags, text limits, User, Bookmark and Tag limits | Done |
+| 3 | **Packaging:** environment config, `slog`, Dockerfile, compose, CI | Next |
 | 4 | **Restyle:** own CSS, dark mode, htmx actions | Planned |
 | 5 | **List views and search** | Planned |
 | 6 | **Import and export,** with round-trip tests | Planned |

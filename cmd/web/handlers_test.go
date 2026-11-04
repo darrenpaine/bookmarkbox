@@ -480,6 +480,95 @@ func TestTags(t *testing.T) {
 	})
 }
 
+func TestBookmarkLimits(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+	ts.login(t)
+
+	tests := []struct {
+		name      string
+		path      string
+		title     string
+		tags      string
+		wantError string
+	}{
+		{"Bookmark limit", "/bookmarks/new", mocks.OverBookmarkLimitTitle, "", "You have reached your limit of bookmarks"},
+		{"Tag limit on add", "/bookmarks/new", "Fine", mocks.OverTagLimitTag, "You have reached your limit of tags"},
+		{"Tag limit on edit", "/bookmarks/1/edit", "Fine", mocks.OverTagLimitTag, "You have reached your limit of tags"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			form := url.Values{}
+			form.Add("url", "https://pkg.go.dev")
+			form.Add("title", tt.title)
+			form.Add("tags", tt.tags)
+			code, _, body := ts.postForm(t, tt.path, form)
+			assert.Equal(t, code, http.StatusUnprocessableEntity)
+			assert.StringContains(t, body, tt.wantError)
+			assert.StringContains(t, body, "value='"+tt.title+"'")
+		})
+	}
+}
+
+func TestSignupClosed(t *testing.T) {
+	signupForm := func() url.Values {
+		form := url.Values{}
+		form.Add("name", "Carol")
+		form.Add("email", "carol@example.com")
+		form.Add("password", "pa$$word")
+		return form
+	}
+
+	t.Run("Open shows link and form", func(t *testing.T) {
+		app := newTestApplication(t)
+		ts := newTestServer(t, app.routes())
+		defer ts.Close()
+		_, _, home := ts.get(t, "/")
+		assert.StringContains(t, home, "<a href='/user/signup'>Signup</a>")
+		_, _, body := ts.get(t, "/user/signup")
+		assert.StringContains(t, body, "<form action='/user/signup'")
+	})
+
+	t.Run("Closed hides link and form", func(t *testing.T) {
+		app := newTestApplication(t)
+		app.users = &mocks.UserModel{SignupClosed: true}
+		ts := newTestServer(t, app.routes())
+		defer ts.Close()
+
+		_, _, home := ts.get(t, "/")
+		if strings.Contains(home, "/user/signup") {
+			t.Error("home page still links to signup")
+		}
+		assert.StringContains(t, home, "<a href='/user/login'>Log in</a>")
+
+		code, _, body := ts.get(t, "/user/signup")
+		assert.Equal(t, code, http.StatusOK)
+		assert.StringContains(t, body, "Signup is closed")
+		if strings.Contains(body, "<form action='/user/signup'") {
+			t.Error("closed page shows the form")
+		}
+
+		code, _, body = ts.postForm(t, "/user/signup", signupForm())
+		assert.Equal(t, code, http.StatusForbidden)
+		assert.StringContains(t, body, "Signup is closed")
+
+		// Logging in must still work.
+		ts.login(t)
+	})
+
+	t.Run("Losing the race for the last place", func(t *testing.T) {
+		app := newTestApplication(t)
+		ts := newTestServer(t, app.routes())
+		defer ts.Close()
+		form := signupForm()
+		form.Set("email", mocks.FullEmail)
+		code, _, body := ts.postForm(t, "/user/signup", form)
+		assert.Equal(t, code, http.StatusForbidden)
+		assert.StringContains(t, body, "Signup is closed")
+	})
+}
+
 func TestBookmarkCreateTextLimits(t *testing.T) {
 	app := newTestApplication(t)
 	ts := newTestServer(t, app.routes())
