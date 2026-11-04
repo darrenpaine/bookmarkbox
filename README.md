@@ -13,14 +13,18 @@ Based on the 'SnippetBox' project from ["Let's Go" by Alex Edwards](https://lets
 - Schema managed by embedded `goose` migrations, applied on start-up
 
 ### Next steps
+- Edit saved bookmarks, rename tags, spot duplicates by normalised URL, remove unused tags, add limits
+- Self-hosting with Docker Compose, plus environment config, `slog` and CI
 - New look: own CSS with dark mode, favicons, tag chips, and htmx for starring, tagging and deleting in place
 - List views (compact, cards, by tag, favourites, read later) with sorting and filters
 - Search across titles, URLs, notes and tags (SQLite FTS5)
 - Import and export the bookmark files from Chrome, Edge, Firefox and Brave
+- Live demo on Render, with seeded data that resets regularly
 - JSON API with personal API tokens
 - Browser extension to save the current page, plus a right-click menu option
 - Fetch page titles, descriptions and favicons in the background
-- Live demo: hosted on Render with a Turso database
+
+See [requirements](docs/requirements.md), [design](docs/design.md) and the [decision records](docs/adr/).
 
 ### Running:
 No database set-up needed: the app creates `bookmarkbox.db` and applies the migrations on first run.

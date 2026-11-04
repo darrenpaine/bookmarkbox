@@ -1,0 +1,131 @@
+# BookmarkBox requirements
+
+What BookmarkBox must do and for whom. How it does it is in [design.md](design.md), the reasons behind the major decisions are in [adr/](adr/), and the terms used here are defined in [GLOSSARY.md](../GLOSSARY.md).
+
+## Purpose
+
+BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It has two aims:
+
+- Be useful day to day, self-hosted.
+- Show my own work. It began as the Snippetbox example from *Let's Go* by Alex Edwards, which the README credits, followed by a list of what changed.
+
+## Users and scope
+
+- BookmarkBox is multi-user. Each User's Bookmarks are private to them, and another User's Bookmark must behave as if it does not exist.
+- The two ways of running it are **self-hosted** and the **public demo**.
+
+**Out of scope:** sharing Bookmarks, public Bookmarks, and teams or groups.
+
+## Features
+
+### Bookmarks and Tags
+
+- A User can add, view, update and delete their Bookmarks, and mark them as Favourite or Read later.
+- Updating a Bookmark can change any of its details, including its URL and Tags. Changing the URL to match another of the Owner's Bookmarks is rejected as a Duplicate.
+- A Bookmark has a URL, title, description, notes, Tags and a favicon.
+- A Bookmark can have many Tags. Tag names are trimmed and lower-cased.
+- A Tag exists only while at least one Bookmark uses it. It is removed automatically when its last Bookmark is deleted or stops using it, so there is no separate delete action for Tags.
+- A User can rename a Tag, which updates every Bookmark using it. Renaming to a Tag the User already has merges the two, after a confirmation.
+- An Owner cannot have Duplicates. Two Users can save the same URL.
+- The form, import and API all apply the same definition of a Duplicate.
+
+### Look and feel
+
+- Own visual identity, replacing the book's CSS: logo or wordmark, app favicon, own colours, dark mode and a dense layout.
+- Favicons beside links, coloured Tag chips and a star control.
+- In-place actions without a full page reload: set Favourite, add or remove a Tag, delete, live search.
+- A proper empty state, such as "No bookmarks yet. Import from your browser?"
+
+### List views and search
+
+| List view | Shows |
+|---|---|
+| Compact | Favicon, title, domain and Tags; dense, for scanning |
+| Cards | Adds description and thumbnail |
+| By Tag | Grouped sections, or a Tag sidebar with counts |
+| Favourites | Favourite Bookmarks only |
+| Recent / Read later | Newest first, or Read later only |
+| Search | Matches on title, URL, notes and Tags |
+
+- Sort by newest, oldest, A-Z or domain.
+- Filter by Tag, Favourite or domain.
+- The last List view is remembered for the session.
+- Later: Saved views.
+
+### Import and export
+
+- Import the bookmark file exported by Chrome, Edge, Firefox or Brave.
+- Each Folder in a Bookmark's path becomes a flat Tag: `Programming/Go` gives `programming` and `go`. Browser root Folders such as "Bookmarks bar" do not become Tags.
+- The original date added is kept.
+- A preview comes before saving, such as "312 bookmarks, 18 duplicates, 24 folders -> tags. Import?"
+- An import is all or nothing. If it would pass the User's Bookmark or Tag limit, the preview says so and nothing is saved.
+- Export produces a file in the same format.
+- A BookmarkBox export imported back into BookmarkBox loses nothing. Folder structure does not survive export, and browsers are only expected to keep the links (see [ADR 4](adr/0004-folders-become-flat-tags.md)).
+
+### JSON API
+
+- Create a Bookmark, list Tags, check whether a URL is already saved, and bulk import.
+- Personal API tokens are created on a settings page and can be used in place of a login.
+
+### Browser extension
+
+- Works in Chrome, Edge and Brave. Firefox needs small changes.
+- The toolbar popup is pre-filled with the current tab's title and URL, with Tag autocomplete, Favourite and save.
+- A right-click option, "Save link to BookmarkBox".
+- Direct import from the browser's bookmarks, with no file export. HTML upload stays available for anyone without the extension.
+- The User enters their server address, and the extension gets access only to that address.
+
+### Page metadata
+
+- Titles, descriptions and favicons are fetched in the background after saving, so saving never waits for them.
+
+### Possible later
+
+- Suggest Tags for a new Bookmark from its title and description, using the User's existing Tags. It must be possible to switch this off.
+- Saved views.
+- Continuous backup with Litestream.
+
+## Self-hosting
+
+- Runs with Docker Compose as one service, with data on a named volume. No separate database server.
+- Settings come from environment variables, and secrets never appear in the compose file.
+- HTTPS comes from the self-hoster's own reverse proxy. The docs include a proxy example, and plain HTTP on a home network is supported.
+- A fresh install allows one User. A self-hoster can raise the limit, for example for family.
+- There is no default account.
+- The docs give a safe backup command.
+
+## Public demo
+
+- A live demo at no cost, on a free hosting tier. The README states that the first visit after idle takes about a minute.
+- A shared Demo User with about 200 seeded Bookmarks of public links, not personal ones. Its login is shown on the home page.
+- Visitors can sign up too, with a clear notice that all demo data gets wiped.
+- Limits: 25 Users including the Demo User, 300 Bookmarks per User and 300 Tags per User.
+- The Demo User cannot change its password or create API tokens. Users who sign up have no such restriction.
+- All data resets at start-up and every 24 hours: Users, Bookmarks and sessions are removed, then the Demo User and seed data are recreated.
+
+## Limits and safety
+
+- A configurable maximum number of Users, of Bookmarks per User and of Tags per User. Limits hold even when two requests arrive together.
+- Text fields are limited: URL and description to 2,000 characters, notes to 10,000, title to 200.
+- Login and signup are rate limited per IP address, to about 10 attempts a minute.
+- Metadata fetching does not reach private or loopback addresses by default. Self-hosters can opt out; the demo cannot.
+- Requests from other sites cannot act on a logged-in User's behalf.
+
+## Roadmap
+
+| # | Step | Status |
+|---|---|---|
+| 1 | **Foundations:** rename, SQLite, migrations, Bookmarks and Tags | Done |
+| 2 | **Model fixes and editing:** update Bookmarks, rename Tags, Duplicates by normalised URL, remove unused Tags, text limits, User, Bookmark and Tag limits | Next |
+| 3 | **Packaging:** environment config, `slog`, Dockerfile, compose, CI | Planned |
+| 4 | **Restyle:** own CSS, dark mode, htmx actions | Planned |
+| 5 | **List views and search** | Planned |
+| 6 | **Import and export,** with round-trip tests | Planned |
+| 7 | **Public demo** on Render; needs step 6 for its seed data | Planned |
+| 8 | **JSON API and tokens** | Planned |
+| 9 | **Browser extension:** popup, then right-click, then direct import | Planned |
+| 10 | **Background metadata and favicons** | Planned |
+
+The login and signup rate limit belongs with step 7 at the latest, because the demo is the first public deployment.
+
+README still to finish: screenshot, an architecture paragraph, and a "Design decisions" section linking to the ADRs.
