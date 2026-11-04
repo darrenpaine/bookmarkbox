@@ -67,6 +67,11 @@ func (app *application) about(w http.ResponseWriter, r *http.Request) {
 	app.render(w, http.StatusOK, "about.tmpl", data)
 }
 
+// tooLong is the validation message for a field over its length limit.
+func tooLong(limit int) string {
+	return fmt.Sprintf("This field cannot be more than %d characters long", limit)
+}
+
 // bookmarkID reads the {id} URL parameter; ok is false if it isn't a positive integer.
 func bookmarkID(r *http.Request) (int, bool) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
@@ -104,7 +109,7 @@ func (app *application) bookmarkCreateShowForm(w http.ResponseWriter, r *http.Re
 // Validate and save a new bookmark, then show it.
 func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Request) {
 	var form bookmarkCreateForm
-	err := app.decodePostForm(r, &form)
+	err := app.decodePostForm(w, r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return
@@ -115,8 +120,14 @@ func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Reques
 	// VALIDATION:
 	form.CheckField(validator.NotBlank(form.URL), "url", "This field cannot be blank")
 	form.CheckField(validator.WebURL(form.URL), "url", "This must be a full http:// or https:// address")
+	form.CheckField(validator.MaxChars(form.URL, models.MaxURLChars), "url", tooLong(models.MaxURLChars))
 	form.CheckField(validator.NotBlank(form.Title), "title", "This field cannot be blank")
-	form.CheckField(validator.MaxChars(form.Title, 200), "title", "This field cannot be more than 200 characters long")
+	form.CheckField(validator.MaxChars(form.Title, models.MaxTitleChars), "title", tooLong(models.MaxTitleChars))
+	form.CheckField(validator.MaxChars(form.Description, models.MaxDescriptionChars), "description", tooLong(models.MaxDescriptionChars))
+	form.CheckField(validator.MaxChars(form.Notes, models.MaxNotesChars), "notes", tooLong(models.MaxNotesChars))
+	for _, tag := range models.NormaliseTags(strings.Split(form.Tags, ",")) {
+		form.CheckField(validator.MaxChars(tag, models.MaxTagNameChars), "tags", fmt.Sprintf("Each tag must be %d characters or fewer", models.MaxTagNameChars))
+	}
 	if !form.Valid() {
 		data := app.newTemplateData(r)
 		data.Form = form
@@ -198,7 +209,7 @@ func (app *application) userSignupShowForm(w http.ResponseWriter, r *http.Reques
 // Post method to create a user
 func (app *application) userSignupPost(w http.ResponseWriter, r *http.Request) {
 	var form userSignupForm
-	err := app.decodePostForm(r, &form)
+	err := app.decodePostForm(w, r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return
@@ -246,7 +257,7 @@ func (app *application) userLoginShowForm(w http.ResponseWriter, r *http.Request
 // Authenticate and log the user in
 func (app *application) userLoginPost(w http.ResponseWriter, r *http.Request) {
 	var form userLoginForm
-	err := app.decodePostForm(r, &form)
+	err := app.decodePostForm(w, r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return
@@ -360,7 +371,7 @@ func (app *application) userPasswordShowForm(w http.ResponseWriter, r *http.Requ
 // Do the password update - POST /account/password/update
 func (app *application) userPasswordPost(w http.ResponseWriter, r *http.Request) {
 	var form userChangePasswordForm
-	err := app.decodePostForm(r, &form)
+	err := app.decodePostForm(w, r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return

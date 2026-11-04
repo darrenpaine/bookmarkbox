@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/darrenpaine/bookmarkbox/internal/assert"
@@ -309,6 +310,20 @@ func TestBookmarkCreate(t *testing.T) {
 			wantError: "This field cannot be blank",
 		},
 		{
+			name:      "Title too long",
+			url:       "https://pkg.go.dev",
+			title:     strings.Repeat("a", 201),
+			wantCode:  http.StatusUnprocessableEntity,
+			wantError: "This field cannot be more than 200 characters long",
+		},
+		{
+			name:      "URL too long",
+			url:       "https://pkg.go.dev/" + strings.Repeat("a", 2000),
+			title:     "Long",
+			wantCode:  http.StatusUnprocessableEntity,
+			wantError: "This field cannot be more than 2000 characters long",
+		},
+		{
 			name:      "Duplicate URL",
 			url:       "https://go.dev/doc/effective_go",
 			title:     "Effective Go",
@@ -332,6 +347,54 @@ func TestBookmarkCreate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBookmarkCreateTextLimits(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+	ts.login(t)
+
+	tests := []struct {
+		name      string
+		field     string
+		value     string
+		wantCode  int
+		wantError string
+	}{
+		{"Description at limit", "description", strings.Repeat("a", 2000), http.StatusSeeOther, ""},
+		{"Description too long", "description", strings.Repeat("a", 2001), http.StatusUnprocessableEntity, "more than 2000 characters"},
+		{"Notes at limit", "notes", strings.Repeat("a", 10000), http.StatusSeeOther, ""},
+		{"Notes too long", "notes", strings.Repeat("a", 10001), http.StatusUnprocessableEntity, "more than 10000 characters"},
+		{"Multi-byte notes count characters", "notes", strings.Repeat("é", 10000), http.StatusSeeOther, ""},
+		{"Tag at limit", "tags", strings.Repeat("a", 50), http.StatusSeeOther, ""},
+		{"Tag too long", "tags", "go, " + strings.Repeat("a", 51), http.StatusUnprocessableEntity, "50 characters or fewer"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			form := url.Values{}
+			form.Add("url", "https://pkg.go.dev")
+			form.Add("title", "Go packages")
+			form.Add(tt.field, tt.value)
+			code, _, body := ts.postForm(t, "/bookmarks/new", form)
+			assert.Equal(t, code, tt.wantCode)
+			if tt.wantError != "" {
+				assert.StringContains(t, body, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestFormSizeLimit(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+	ts.login(t)
+
+	form := url.Values{}
+	form.Add("notes", strings.Repeat("a", maxFormBytes))
+	code, _, _ := ts.postForm(t, "/bookmarks/new", form)
+	assert.Equal(t, code, http.StatusBadRequest)
 }
 
 // Favourite and delete only work on the user's own bookmarks.

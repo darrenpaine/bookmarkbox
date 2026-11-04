@@ -20,6 +20,16 @@ type BookmarkModelInterface interface {
 	Delete(userID, id int) error
 }
 
+// Maximum lengths, in characters. Shared so that the forms, and later the
+// importer and API, all enforce the same numbers.
+const (
+	MaxTitleChars       = 200
+	MaxURLChars         = 2000
+	MaxDescriptionChars = 2000
+	MaxNotesChars       = 10000
+	MaxTagNameChars     = 50
+)
+
 // Bookmark holds one saved link and its tags.
 type Bookmark struct {
 	ID          int

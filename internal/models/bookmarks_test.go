@@ -1,6 +1,7 @@
 package models
 
 import (
+	"database/sql"
 	"errors"
 	"slices"
 	"testing"
@@ -18,7 +19,7 @@ func TestNormaliseTags(t *testing.T) {
 
 func TestBookmarkModelGet(t *testing.T) {
 	db := newTestDB(t)
-	m := BookmarkModel{db}
+	m := BookmarkModel{DB: db}
 
 	t.Run("Owner", func(t *testing.T) {
 		b, err := m.Get(1, 1)
@@ -42,7 +43,7 @@ func TestBookmarkModelGet(t *testing.T) {
 
 func TestBookmarkModelInsert(t *testing.T) {
 	db := newTestDB(t)
-	m := BookmarkModel{db}
+	m := BookmarkModel{DB: db}
 
 	id, err := m.Insert(1, &Bookmark{
 		URL:       "https://pkg.go.dev/database/sql",
@@ -98,7 +99,7 @@ func TestBookmarkModelInsert(t *testing.T) {
 
 func TestBookmarkModelToggleAndDelete(t *testing.T) {
 	db := newTestDB(t)
-	m := BookmarkModel{db}
+	m := BookmarkModel{DB: db}
 
 	assert.NilError(t, m.ToggleFavourite(1, 1))
 	b, _ := m.Get(1, 1)
@@ -112,4 +113,38 @@ func TestBookmarkModelToggleAndDelete(t *testing.T) {
 	var links int
 	assert.NilError(t, db.QueryRow("SELECT count(*) FROM bookmark_tags").Scan(&links))
 	assert.Equal(t, links, 0)
+}
+
+func tagNames(t *testing.T, db *sql.DB, userID int) []string {
+	rows, err := db.Query("SELECT name FROM tags WHERE user_id = ? ORDER BY name", userID)
+	assert.NilError(t, err)
+	defer rows.Close()
+	names := []string{}
+	for rows.Next() {
+		var name string
+		assert.NilError(t, rows.Scan(&name))
+		names = append(names, name)
+	}
+	return names
+}
+
+func TestUnusedTagsAreRemoved(t *testing.T) {
+	db := newTestDB(t)
+	m := BookmarkModel{DB: db}
+
+	id, err := m.Insert(1, &Bookmark{URL: "https://sqlite.org", Title: "SQLite", Tags: []string{"go", "databases"}})
+	assert.NilError(t, err)
+
+	// "go" is still used by the seeded bookmark. Deleting a bookmark reaches
+	// bookmark_tags through a foreign key cascade, so this proves the trigger
+	// fires for cascades.
+	assert.NilError(t, m.Delete(1, id))
+	if got := tagNames(t, db, 1); !slices.Equal(got, []string{"go"}) {
+		t.Errorf("tags after delete: got %q", got)
+	}
+
+	assert.NilError(t, m.Delete(1, 1))
+	if got := tagNames(t, db, 1); len(got) != 0 {
+		t.Errorf("tags after last delete: got %q", got)
+	}
 }

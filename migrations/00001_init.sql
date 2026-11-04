@@ -45,7 +45,19 @@ CREATE TABLE bookmark_tags (
 );
 CREATE INDEX bookmark_tags_tag_idx ON bookmark_tags (tag_id);
 
+-- A Tag exists only while at least one Bookmark uses it. Foreign key cascades
+-- fire this too, so it covers every way a Bookmark can lose a Tag.
+-- +goose StatementBegin
+CREATE TRIGGER tags_remove_unused AFTER DELETE ON bookmark_tags
+BEGIN
+    DELETE FROM tags
+    WHERE id = OLD.tag_id
+      AND NOT EXISTS (SELECT 1 FROM bookmark_tags WHERE tag_id = OLD.tag_id);
+END;
+-- +goose StatementEnd
+
 -- +goose Down
+DROP TRIGGER tags_remove_unused;
 DROP TABLE bookmark_tags;
 DROP TABLE tags;
 DROP TABLE bookmarks;

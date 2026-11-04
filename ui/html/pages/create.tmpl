@@ -18,14 +18,23 @@
     </div>
     <div>
         <label>Description:</label>
+        {{with .Form.FieldErrors.description}}
+        <label class='error'>{{.}}</label>
+        {{end}}
         <input type='text' name='description' value='{{.Form.Description}}'>
     </div>
     <div>
         <label>Tags (comma-separated):</label>
+        {{with .Form.FieldErrors.tags}}
+        <label class='error'>{{.}}</label>
+        {{end}}
         <input type='text' name='tags' value='{{.Form.Tags}}' placeholder='go, databases'>
     </div>
     <div>
         <label>Notes:</label>
+        {{with .Form.FieldErrors.notes}}
+        <label class='error'>{{.}}</label>
+        {{end}}
         <textarea name='notes'>{{.Form.Notes}}</textarea>
     </div>
     <div>

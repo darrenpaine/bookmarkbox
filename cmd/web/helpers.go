@@ -11,6 +11,9 @@ import (
 	"github.com/go-playground/form/v4"
 )
 
+// Largest form post accepted.
+const maxFormBytes = 1 << 20 // 1 MB
+
 // The serverError helper writes a stack trace to the errorLog, and
 // then sends a generic 500 response (or the trace itself in debug mode).
 func (app *application) serverError(w http.ResponseWriter, err error) {
@@ -70,7 +73,10 @@ func (app *application) newTemplateData(r *http.Request) *templateData {
 }
 
 // Helper to decode form data into the dst.
-func (app *application) decodePostForm(r *http.Request, dst any) error {
+func (app *application) decodePostForm(w http.ResponseWriter, r *http.Request, dst any) error {
+	// No form needs more than this, and without a limit a client could make
+	// the server read up to Go's 10 MB form limit on every request.
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
 	// Call ParseForm() on the request, in the same way that we did in our
 	// bookmarkCreatePost handler.
 	err := r.ParseForm()
