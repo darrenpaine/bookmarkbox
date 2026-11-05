@@ -17,6 +17,7 @@
         {{if .ReadLater}}<span>Read later</span>{{end}}
     </div>
     <div class='actions'>
+        <a href='/bookmarks/{{.ID}}/edit'>Edit</a>
         <form action='/bookmarks/{{.ID}}/favourite' method='POST'>
             <button>{{if .Favourite}}Remove star{{else}}Star{{end}}</button>
         </form>

@@ -4,6 +4,7 @@
         <a href='/'>Home</a>
         {{if .IsAuthenticated}}
         <a href='/bookmarks/new'>Add bookmark</a>
+        <a href='/tags'>Tags</a>
         {{end}}
         <a href='/about'>About</a>
     </div>
@@ -14,7 +15,7 @@
             <button>Logout</button>
         </form>
         {{else}}
-        <a href='/user/signup'>Signup</a>
+        {{if .SignupOpen}}<a href='/user/signup'>Signup</a>{{end}}
         <a href='/user/login'>Login</a>
         {{end}}
     </div>

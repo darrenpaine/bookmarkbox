@@ -1,8 +1,12 @@
 package models
 
 import (
+	"database/sql"
 	"errors"
+	"fmt"
 	"slices"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/darrenpaine/bookmarkbox/internal/assert"
@@ -18,7 +22,7 @@ func TestNormaliseTags(t *testing.T) {
 
 func TestBookmarkModelGet(t *testing.T) {
 	db := newTestDB(t)
-	m := BookmarkModel{db}
+	m := BookmarkModel{DB: db}
 
 	t.Run("Owner", func(t *testing.T) {
 		b, err := m.Get(1, 1)
@@ -42,7 +46,7 @@ func TestBookmarkModelGet(t *testing.T) {
 
 func TestBookmarkModelInsert(t *testing.T) {
 	db := newTestDB(t)
-	m := BookmarkModel{db}
+	m := BookmarkModel{DB: db}
 
 	id, err := m.Insert(1, &Bookmark{
 		URL:       "https://pkg.go.dev/database/sql",
@@ -69,6 +73,20 @@ func TestBookmarkModelInsert(t *testing.T) {
 		assert.Equal(t, errors.Is(err, ErrDuplicateURL), true)
 	})
 
+	t.Run("Duplicate after normalising", func(t *testing.T) {
+		_, err := m.Insert(1, &Bookmark{URL: "https://GO.dev/doc/effective_go/?utm_source=x", Title: "Again"})
+		assert.Equal(t, errors.Is(err, ErrDuplicateURL), true)
+	})
+
+	t.Run("Original URL kept for display", func(t *testing.T) {
+		id, err := m.Insert(1, &Bookmark{URL: "https://Example.com/?utm_source=x", Title: "Example"})
+		assert.NilError(t, err)
+		b, err := m.Get(1, id)
+		assert.NilError(t, err)
+		assert.Equal(t, b.URL, "https://Example.com/?utm_source=x")
+		assert.NilError(t, m.Delete(1, id))
+	})
+
 	t.Run("Same URL, other user", func(t *testing.T) {
 		_, err := m.Insert(2, &Bookmark{URL: "https://go.dev/doc/effective_go", Title: "Bob's copy"})
 		assert.NilError(t, err)
@@ -84,7 +102,7 @@ func TestBookmarkModelInsert(t *testing.T) {
 
 func TestBookmarkModelToggleAndDelete(t *testing.T) {
 	db := newTestDB(t)
-	m := BookmarkModel{db}
+	m := BookmarkModel{DB: db}
 
 	assert.NilError(t, m.ToggleFavourite(1, 1))
 	b, _ := m.Get(1, 1)
@@ -98,4 +116,219 @@ func TestBookmarkModelToggleAndDelete(t *testing.T) {
 	var links int
 	assert.NilError(t, db.QueryRow("SELECT count(*) FROM bookmark_tags").Scan(&links))
 	assert.Equal(t, links, 0)
+}
+
+func TestBookmarkModelUpdate(t *testing.T) {
+	db := newTestDB(t)
+	m := BookmarkModel{DB: db}
+
+	other, err := m.Insert(1, &Bookmark{URL: "https://sqlite.org", Title: "SQLite", Tags: []string{"go", "databases"}})
+	assert.NilError(t, err)
+	before, err := m.Get(1, 1)
+	assert.NilError(t, err)
+	_, err = db.Exec("UPDATE bookmarks SET favicon = 'icon.png' WHERE id = 1")
+	assert.NilError(t, err)
+	var goTagID int
+	assert.NilError(t, db.QueryRow("SELECT id FROM tags WHERE name = 'go'").Scan(&goTagID))
+
+	t.Run("Changes fields and tags", func(t *testing.T) {
+		err := m.Update(1, &Bookmark{
+			ID: 1, URL: "https://go.dev/doc/effective_go/", Title: "New title", Description: "New description",
+			Notes: "Notes", Favourite: true, ReadLater: true, Tags: []string{"GO", "style"},
+		})
+		assert.NilError(t, err)
+		b, err := m.Get(1, 1)
+		assert.NilError(t, err)
+		assert.Equal(t, b.Title, "New title")
+		assert.Equal(t, b.Description, "New description")
+		assert.Equal(t, b.Notes, "Notes")
+		assert.Equal(t, b.Favourite, true)
+		assert.Equal(t, b.ReadLater, true)
+		assert.Equal(t, b.Created.Equal(before.Created), true)
+		// The same site after normalising, so the favicon stays.
+		assert.Equal(t, b.Favicon, "icon.png")
+		if !slices.Equal(b.Tags, []string{"go", "style"}) {
+			t.Errorf("tags: got %q", b.Tags)
+		}
+	})
+
+	t.Run("Kept tag keeps its ID", func(t *testing.T) {
+		var id int
+		assert.NilError(t, db.QueryRow("SELECT id FROM tags WHERE name = 'go'").Scan(&id))
+		assert.Equal(t, id, goTagID)
+	})
+
+	t.Run("New URL clears favicon", func(t *testing.T) {
+		assert.NilError(t, m.Update(1, &Bookmark{ID: 1, URL: "https://go.dev/blog", Title: "Blog"}))
+		b, err := m.Get(1, 1)
+		assert.NilError(t, err)
+		assert.Equal(t, b.Favicon, "")
+		assert.Equal(t, len(b.Tags), 0)
+	})
+
+	t.Run("Tag only used here is removed", func(t *testing.T) {
+		if got := tagNames(t, db, 1); !slices.Equal(got, []string{"databases", "go"}) {
+			t.Errorf("tags: got %q", got)
+		}
+	})
+
+	t.Run("Saving without changes", func(t *testing.T) {
+		assert.NilError(t, m.Update(1, &Bookmark{ID: 1, URL: "https://go.dev/blog", Title: "Blog"}))
+	})
+
+	t.Run("Duplicate URL changes nothing", func(t *testing.T) {
+		err := m.Update(1, &Bookmark{ID: 1, URL: "https://SQLite.org/", Title: "Changed", Tags: []string{"new"}})
+		assert.Equal(t, errors.Is(err, ErrDuplicateURL), true)
+		b, err := m.Get(1, 1)
+		assert.NilError(t, err)
+		assert.Equal(t, b.Title, "Blog")
+		if got := tagNames(t, db, 1); slices.Contains(got, "new") {
+			t.Errorf("tag was saved: %q", got)
+		}
+	})
+
+	t.Run("Other user", func(t *testing.T) {
+		err := m.Update(2, &Bookmark{ID: other, URL: "https://hacked.example.com", Title: "Hacked"})
+		assert.Equal(t, errors.Is(err, ErrNoRecord), true)
+		b, err := m.Get(1, other)
+		assert.NilError(t, err)
+		assert.Equal(t, b.Title, "SQLite")
+	})
+}
+
+func TestBookmarkLimit(t *testing.T) {
+	db := newTestDB(t)
+	m := BookmarkModel{DB: db, MaxBookmarks: 2}
+
+	_, err := m.Insert(1, &Bookmark{URL: "https://a.example.com", Title: "A"})
+	assert.NilError(t, err)
+
+	_, err = m.Insert(1, &Bookmark{URL: "https://b.example.com", Title: "B", Tags: []string{"new"}})
+	assert.Equal(t, errors.Is(err, ErrBookmarkLimit), true)
+
+	// Nothing from the failed save remains.
+	list, err := m.Latest(1, 10)
+	assert.NilError(t, err)
+	assert.Equal(t, len(list), 2)
+	if got := tagNames(t, db, 1); slices.Contains(got, "new") {
+		t.Errorf("tag was saved: %q", got)
+	}
+
+	t.Run("Per user", func(t *testing.T) {
+		_, err := m.Insert(2, &Bookmark{URL: "https://b.example.com", Title: "B"})
+		assert.NilError(t, err)
+	})
+
+	t.Run("Freed by deleting", func(t *testing.T) {
+		assert.NilError(t, m.Delete(1, 1))
+		_, err := m.Insert(1, &Bookmark{URL: "https://b.example.com", Title: "B"})
+		assert.NilError(t, err)
+	})
+}
+
+func TestBookmarkLimitConcurrent(t *testing.T) {
+	db := newTestDB(t)
+	m := BookmarkModel{DB: db, MaxBookmarks: 6} // one is already seeded
+
+	var wg sync.WaitGroup
+	var saved, refused atomic.Int64
+	for i := range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := m.Insert(1, &Bookmark{URL: fmt.Sprintf("https://%d.example.com", i), Title: "T"})
+			switch {
+			case err == nil:
+				saved.Add(1)
+			case errors.Is(err, ErrBookmarkLimit):
+				refused.Add(1)
+			default:
+				t.Errorf("unexpected error: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	assert.Equal(t, saved.Load(), int64(5))
+	assert.Equal(t, refused.Load(), int64(15))
+}
+
+func TestTagLimit(t *testing.T) {
+	db := newTestDB(t)
+	m := BookmarkModel{DB: db, MaxTags: 2}
+
+	id, err := m.Insert(1, &Bookmark{URL: "https://a.example.com", Title: "A", Tags: []string{"only-here"}})
+	assert.NilError(t, err)
+	// Alice is now at the limit, with go and only-here.
+
+	t.Run("New tag refused", func(t *testing.T) {
+		_, err := m.Insert(1, &Bookmark{URL: "https://b.example.com", Title: "B", Tags: []string{"third"}})
+		assert.Equal(t, errors.Is(err, ErrTagLimit), true)
+		list, err := m.Latest(1, 10)
+		assert.NilError(t, err)
+		assert.Equal(t, len(list), 2)
+	})
+
+	t.Run("Existing tags are fine", func(t *testing.T) {
+		_, err := m.Insert(1, &Bookmark{URL: "https://c.example.com", Title: "C", Tags: []string{"go", "only-here"}})
+		assert.NilError(t, err)
+	})
+
+	t.Run("Swapping a tag at the limit works", func(t *testing.T) {
+		other, err := m.Insert(1, &Bookmark{URL: "https://d.example.com", Title: "D", Tags: []string{"go"}})
+		assert.NilError(t, err)
+		assert.NilError(t, m.Delete(1, other))
+		// only-here is on two bookmarks, so clear the one from the test above.
+		assert.NilError(t, m.Update(1, &Bookmark{ID: id + 1, URL: "https://c.example.com", Title: "C", Tags: []string{"go"}}))
+		assert.NilError(t, m.Update(1, &Bookmark{ID: id, URL: "https://a.example.com", Title: "A", Tags: []string{"swapped"}}))
+		if got := tagNames(t, db, 1); !slices.Equal(got, []string{"go", "swapped"}) {
+			t.Errorf("tags: got %q", got)
+		}
+	})
+
+	t.Run("Adding a tag by editing is refused", func(t *testing.T) {
+		err := m.Update(1, &Bookmark{ID: id, URL: "https://a.example.com", Title: "Changed", Tags: []string{"swapped", "third"}})
+		assert.Equal(t, errors.Is(err, ErrTagLimit), true)
+		b, err := m.Get(1, id)
+		assert.NilError(t, err)
+		assert.Equal(t, b.Title, "A")
+	})
+
+	t.Run("Over a lowered limit, edits still work", func(t *testing.T) {
+		lowered := BookmarkModel{DB: db, MaxTags: 1}
+		assert.NilError(t, lowered.Update(1, &Bookmark{ID: id, URL: "https://a.example.com", Title: "Renamed", Tags: []string{"swapped"}}))
+	})
+}
+
+func tagNames(t *testing.T, db *sql.DB, userID int) []string {
+	rows, err := db.Query("SELECT name FROM tags WHERE user_id = ? ORDER BY name", userID)
+	assert.NilError(t, err)
+	defer rows.Close()
+	names := []string{}
+	for rows.Next() {
+		var name string
+		assert.NilError(t, rows.Scan(&name))
+		names = append(names, name)
+	}
+	return names
+}
+
+func TestUnusedTagsAreRemoved(t *testing.T) {
+	db := newTestDB(t)
+	m := BookmarkModel{DB: db}
+
+	id, err := m.Insert(1, &Bookmark{URL: "https://sqlite.org", Title: "SQLite", Tags: []string{"go", "databases"}})
+	assert.NilError(t, err)
+
+	// "go" is still used by the seeded bookmark. Deleting a bookmark reaches
+	// bookmark_tags through a foreign key cascade, so this proves the trigger
+	// fires for cascades.
+	assert.NilError(t, m.Delete(1, id))
+	if got := tagNames(t, db, 1); !slices.Equal(got, []string{"go"}) {
+		t.Errorf("tags after delete: got %q", got)
+	}
+
+	assert.NilError(t, m.Delete(1, 1))
+	if got := tagNames(t, db, 1); len(got) != 0 {
+		t.Errorf("tags after last delete: got %q", got)
+	}
 }

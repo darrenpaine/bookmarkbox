@@ -38,7 +38,8 @@ func newTestApplication(t *testing.T) *application {
 		infoLog:        log.New(io.Discard, "", 0),
 		router:         chi.NewRouter(),
 		bookmarks:      &mocks.BookmarkModel{}, // Use the mock.
-		users:          &mocks.UserModel{},     // Use the mock.
+		tags:           &mocks.TagModel{},
+		users:          &mocks.UserModel{}, // Use the mock.
 		templateCache:  templateCache,
 		formDecoder:    formDecoder,
 		sessionManager: sessionManager,

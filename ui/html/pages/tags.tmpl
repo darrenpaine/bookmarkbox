@@ -1,0 +1,27 @@
+{{define "title"}}Tags{{end}}
+{{define "main"}}
+<h2>Your Tags</h2>
+{{if .Tags}}
+<table class='tags'>
+    <tr>
+        <th>Tag</th>
+        <th>Bookmarks</th>
+        <th>Rename</th>
+    </tr>
+    {{range .Tags}}
+    <tr>
+        <td><span class='tag'>{{.Name}}</span></td>
+        <td>{{.BookmarkCount}}</td>
+        <td>
+            <form action='/tags/{{.ID}}/rename' method='POST'>
+                <input type='text' name='name' value='{{.Name}}' aria-label='New name for {{.Name}}'>
+                <button>Rename</button>
+            </form>
+        </td>
+    </tr>
+    {{end}}
+</table>
+{{else}}
+<p>No tags yet. Add some when you save a bookmark.</p>
+{{end}}
+{{end}}

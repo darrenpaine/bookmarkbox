@@ -12,9 +12,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// Bookmark creation form - with field validation
-type bookmarkCreateForm struct {
+// Bookmark add and edit form - with field validation
+type bookmarkForm struct {
 	validator.Validator `form:"-"`
+	Action              string `form:"-"` // where the form posts to
 	URL                 string `form:"url"`
 	Title               string `form:"title"`
 	Description         string `form:"description"`
@@ -22,6 +23,12 @@ type bookmarkCreateForm struct {
 	Tags                string `form:"tags"` // comma-separated
 	Favourite           bool   `form:"favourite"`
 	ReadLater           bool   `form:"read_later"`
+}
+
+// Tag rename form. Confirm is set by the merge confirmation page.
+type tagRenameForm struct {
+	Name    string `form:"name"`
+	Confirm bool   `form:"confirm"`
 }
 
 // User Signup form - with field validation
@@ -67,15 +74,20 @@ func (app *application) about(w http.ResponseWriter, r *http.Request) {
 	app.render(w, http.StatusOK, "about.tmpl", data)
 }
 
-// bookmarkID reads the {id} URL parameter; ok is false if it isn't a positive integer.
-func bookmarkID(r *http.Request) (int, bool) {
+// tooLong is the validation message for a field over its length limit.
+func tooLong(limit int) string {
+	return fmt.Sprintf("This field cannot be more than %d characters long", limit)
+}
+
+// urlID reads the {id} URL parameter; ok is false if it isn't a positive integer.
+func urlID(r *http.Request) (int, bool) {
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	return id, err == nil && id > 0
 }
 
 // Render one of the user's bookmarks. Other users' bookmarks are 404s.
 func (app *application) bookmarkView(w http.ResponseWriter, r *http.Request) {
-	id, ok := bookmarkID(r)
+	id, ok := urlID(r)
 	if !ok {
 		app.notFound(w)
 		return
@@ -94,37 +106,41 @@ func (app *application) bookmarkView(w http.ResponseWriter, r *http.Request) {
 	app.render(w, http.StatusOK, "view.tmpl", data)
 }
 
-// Render the bookmark Create form.
-func (app *application) bookmarkCreateShowForm(w http.ResponseWriter, r *http.Request) {
-	data := app.newTemplateData(r)
-	data.Form = bookmarkCreateForm{}
-	app.render(w, http.StatusOK, "create.tmpl", data)
-}
-
-// Validate and save a new bookmark, then show it.
-func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Request) {
-	var form bookmarkCreateForm
-	err := app.decodePostForm(r, &form)
-	if err != nil {
-		app.clientError(w, http.StatusBadRequest)
-		return
-	}
+// validate checks the form's fields, after trimming the URL and title.
+func (form *bookmarkForm) validate() {
 	form.URL = strings.TrimSpace(form.URL)
 	form.Title = strings.TrimSpace(form.Title)
 
-	// VALIDATION:
 	form.CheckField(validator.NotBlank(form.URL), "url", "This field cannot be blank")
 	form.CheckField(validator.WebURL(form.URL), "url", "This must be a full http:// or https:// address")
+	form.CheckField(validator.MaxChars(form.URL, models.MaxURLChars), "url", tooLong(models.MaxURLChars))
 	form.CheckField(validator.NotBlank(form.Title), "title", "This field cannot be blank")
-	form.CheckField(validator.MaxChars(form.Title, 200), "title", "This field cannot be more than 200 characters long")
-	if !form.Valid() {
-		data := app.newTemplateData(r)
-		data.Form = form
-		app.render(w, http.StatusUnprocessableEntity, "create.tmpl", data)
-		return
+	form.CheckField(validator.MaxChars(form.Title, models.MaxTitleChars), "title", tooLong(models.MaxTitleChars))
+	form.CheckField(validator.MaxChars(form.Description, models.MaxDescriptionChars), "description", tooLong(models.MaxDescriptionChars))
+	form.CheckField(validator.MaxChars(form.Notes, models.MaxNotesChars), "notes", tooLong(models.MaxNotesChars))
+	for _, tag := range models.NormaliseTags(strings.Split(form.Tags, ",")) {
+		form.CheckField(validator.MaxChars(tag, models.MaxTagNameChars), "tags", fmt.Sprintf("Each tag must be %d characters or fewer", models.MaxTagNameChars))
 	}
+}
 
-	id, err := app.bookmarks.Insert(app.authenticatedUserID(r), &models.Bookmark{
+// addSaveError shows a failed save on the form, and reports whether it could.
+func (form *bookmarkForm) addSaveError(err error) bool {
+	switch {
+	case errors.Is(err, models.ErrDuplicateURL):
+		form.AddFieldError("url", "You have already saved this address")
+	case errors.Is(err, models.ErrTagLimit):
+		form.AddFieldError("tags", "You have reached your limit of tags, so this can't add a new one")
+	case errors.Is(err, models.ErrBookmarkLimit):
+		form.AddNonFieldError("You have reached your limit of bookmarks")
+	default:
+		return false
+	}
+	return true
+}
+
+// bookmark builds the model value from the form's fields.
+func (form *bookmarkForm) bookmark() *models.Bookmark {
+	return &models.Bookmark{
 		URL:         form.URL,
 		Title:       form.Title,
 		Description: form.Description,
@@ -132,13 +148,43 @@ func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Reques
 		Favourite:   form.Favourite,
 		ReadLater:   form.ReadLater,
 		Tags:        strings.Split(form.Tags, ","),
-	})
+	}
+}
+
+// renderBookmarkFormError re-displays a form with a validation error status.
+func (app *application) renderBookmarkFormError(w http.ResponseWriter, r *http.Request, page string, form bookmarkForm) {
+	data := app.newTemplateData(r)
+	data.Form = form
+	app.render(w, http.StatusUnprocessableEntity, page, data)
+}
+
+// Render the bookmark Create form.
+func (app *application) bookmarkCreateShowForm(w http.ResponseWriter, r *http.Request) {
+	data := app.newTemplateData(r)
+	data.Form = bookmarkForm{Action: "/bookmarks/new"}
+	app.render(w, http.StatusOK, "create.tmpl", data)
+}
+
+// Validate and save a new bookmark, then show it.
+func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Request) {
+	form := bookmarkForm{}
+	err := app.decodePostForm(w, r, &form)
 	if err != nil {
-		if errors.Is(err, models.ErrDuplicateURL) {
-			form.AddFieldError("url", "You have already saved this address")
-			data := app.newTemplateData(r)
-			data.Form = form
-			app.render(w, http.StatusUnprocessableEntity, "create.tmpl", data)
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+	form.Action = "/bookmarks/new"
+
+	form.validate()
+	if !form.Valid() {
+		app.renderBookmarkFormError(w, r, "create.tmpl", form)
+		return
+	}
+
+	id, err := app.bookmarks.Insert(app.authenticatedUserID(r), form.bookmark())
+	if err != nil {
+		if form.addSaveError(err) {
+			app.renderBookmarkFormError(w, r, "create.tmpl", form)
 		} else {
 			app.serverError(w, err)
 		}
@@ -149,9 +195,79 @@ func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Reques
 	http.Redirect(w, r, fmt.Sprintf("/bookmarks/%d", id), http.StatusSeeOther)
 }
 
+// Render the edit form, filled in from one of the user's bookmarks.
+func (app *application) bookmarkEditShowForm(w http.ResponseWriter, r *http.Request) {
+	id, ok := urlID(r)
+	if !ok {
+		app.notFound(w)
+		return
+	}
+	bookmark, err := app.bookmarks.Get(app.authenticatedUserID(r), id)
+	if err != nil {
+		if errors.Is(err, models.ErrNoRecord) {
+			app.notFound(w)
+		} else {
+			app.serverError(w, err)
+		}
+		return
+	}
+	data := app.newTemplateData(r)
+	data.Form = bookmarkForm{
+		Action:      fmt.Sprintf("/bookmarks/%d/edit", id),
+		URL:         bookmark.URL,
+		Title:       bookmark.Title,
+		Description: bookmark.Description,
+		Notes:       bookmark.Notes,
+		Tags:        strings.Join(bookmark.Tags, ", "),
+		Favourite:   bookmark.Favourite,
+		ReadLater:   bookmark.ReadLater,
+	}
+	app.render(w, http.StatusOK, "edit.tmpl", data)
+}
+
+// Validate and save changes to a bookmark, then show it.
+func (app *application) bookmarkEditPost(w http.ResponseWriter, r *http.Request) {
+	id, ok := urlID(r)
+	if !ok {
+		app.notFound(w)
+		return
+	}
+	form := bookmarkForm{}
+	err := app.decodePostForm(w, r, &form)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+	form.Action = fmt.Sprintf("/bookmarks/%d/edit", id)
+
+	form.validate()
+	if !form.Valid() {
+		app.renderBookmarkFormError(w, r, "edit.tmpl", form)
+		return
+	}
+
+	bookmark := form.bookmark()
+	bookmark.ID = id
+	err = app.bookmarks.Update(app.authenticatedUserID(r), bookmark)
+	if err != nil {
+		switch {
+		case errors.Is(err, models.ErrNoRecord):
+			app.notFound(w)
+		case form.addSaveError(err):
+			app.renderBookmarkFormError(w, r, "edit.tmpl", form)
+		default:
+			app.serverError(w, err)
+		}
+		return
+	}
+
+	app.sessionManager.Put(r.Context(), "flash", "Bookmark updated!")
+	http.Redirect(w, r, fmt.Sprintf("/bookmarks/%d", id), http.StatusSeeOther)
+}
+
 // Toggle the favourite star, then go back to the bookmark.
 func (app *application) bookmarkFavouritePost(w http.ResponseWriter, r *http.Request) {
-	id, ok := bookmarkID(r)
+	id, ok := urlID(r)
 	if !ok {
 		app.notFound(w)
 		return
@@ -170,7 +286,7 @@ func (app *application) bookmarkFavouritePost(w http.ResponseWriter, r *http.Req
 
 // Delete a bookmark, then go to the home page.
 func (app *application) bookmarkDeletePost(w http.ResponseWriter, r *http.Request) {
-	id, ok := bookmarkID(r)
+	id, ok := urlID(r)
 	if !ok {
 		app.notFound(w)
 		return
@@ -188,8 +304,110 @@ func (app *application) bookmarkDeletePost(w http.ResponseWriter, r *http.Reques
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+// Render the user's tags, with a rename box for each.
+func (app *application) tagList(w http.ResponseWriter, r *http.Request) {
+	app.renderTagList(w, r, http.StatusOK, app.newTemplateData(r))
+}
+
+// renderTagList loads the tags and renders the list with the given status.
+func (app *application) renderTagList(w http.ResponseWriter, r *http.Request, status int, data *templateData) {
+	tags, err := app.tags.List(app.authenticatedUserID(r))
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+	data.Tags = tags
+	app.render(w, status, "tags.tmpl", data)
+}
+
+// Rename a tag. Renaming onto an existing tag shows a confirmation page, which
+// posts back here with Confirm set to merge the two.
+func (app *application) tagRenamePost(w http.ResponseWriter, r *http.Request) {
+	id, ok := urlID(r)
+	if !ok {
+		app.notFound(w)
+		return
+	}
+	var form tagRenameForm
+	err := app.decodePostForm(w, r, &form)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+
+	userID := app.authenticatedUserID(r)
+	tag, err := app.tags.Get(userID, id)
+	if err != nil {
+		if errors.Is(err, models.ErrNoRecord) {
+			app.notFound(w)
+		} else {
+			app.serverError(w, err)
+		}
+		return
+	}
+
+	// Commas split Tags on the bookmark form, so they can't be in a name.
+	names := models.NormaliseTags([]string{form.Name})
+	problem := ""
+	switch {
+	case len(names) == 0:
+		problem = "A tag name cannot be blank"
+	case strings.Contains(form.Name, ","):
+		problem = "A tag name cannot contain a comma"
+	case !validator.MaxChars(names[0], models.MaxTagNameChars):
+		problem = fmt.Sprintf("A tag name must be %d characters or fewer", models.MaxTagNameChars)
+	}
+	if problem != "" {
+		data := app.newTemplateData(r)
+		data.Flash = problem
+		app.renderTagList(w, r, http.StatusUnprocessableEntity, data)
+		return
+	}
+	name := names[0]
+	if name == tag.Name {
+		http.Redirect(w, r, "/tags", http.StatusSeeOther)
+		return
+	}
+
+	if form.Confirm {
+		err = app.tags.Merge(userID, id, name)
+	} else {
+		err = app.tags.Rename(userID, id, name)
+	}
+	if err != nil {
+		switch {
+		case errors.Is(err, models.ErrDuplicateTag):
+			data := app.newTemplateData(r)
+			data.Tag = tag
+			data.MergeInto = name
+			app.render(w, http.StatusOK, "tagmerge.tmpl", data)
+		case errors.Is(err, models.ErrNoRecord):
+			app.notFound(w)
+		default:
+			app.serverError(w, err)
+		}
+		return
+	}
+
+	if form.Confirm {
+		app.sessionManager.Put(r.Context(), "flash", "Tags merged.")
+	} else {
+		app.sessionManager.Put(r.Context(), "flash", "Tag renamed.")
+	}
+	http.Redirect(w, r, "/tags", http.StatusSeeOther)
+}
+
 // Show a form to create a user
 func (app *application) userSignupShowForm(w http.ResponseWriter, r *http.Request) {
+	open, err := app.users.SignupOpen()
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+	if !open {
+		app.render(w, http.StatusOK, "signupclosed.tmpl", app.newTemplateData(r))
+		return
+	}
 	data := app.newTemplateData(r)
 	data.Form = userSignupForm{}
 	app.render(w, http.StatusOK, "signup.tmpl", data)
@@ -197,8 +415,17 @@ func (app *application) userSignupShowForm(w http.ResponseWriter, r *http.Reques
 
 // Post method to create a user
 func (app *application) userSignupPost(w http.ResponseWriter, r *http.Request) {
+	open, err := app.users.SignupOpen()
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+	if !open {
+		app.render(w, http.StatusForbidden, "signupclosed.tmpl", app.newTemplateData(r))
+		return
+	}
 	var form userSignupForm
-	err := app.decodePostForm(r, &form)
+	err = app.decodePostForm(w, r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return
@@ -221,12 +448,16 @@ func (app *application) userSignupPost(w http.ResponseWriter, r *http.Request) {
 	// exists then add an error message to the form and re-display it.
 	err = app.users.Insert(form.Name, form.Email, form.Password)
 	if err != nil {
-		if errors.Is(err, models.ErrDuplicateEmail) {
+		switch {
+		case errors.Is(err, models.ErrDuplicateEmail):
 			form.AddFieldError("email", "Email address is already in use")
 			data := app.newTemplateData(r)
 			data.Form = form
 			app.render(w, http.StatusUnprocessableEntity, "signup.tmpl", data)
-		} else {
+		case errors.Is(err, models.ErrUserLimit):
+			// Someone else took the last place since the check above.
+			app.render(w, http.StatusForbidden, "signupclosed.tmpl", app.newTemplateData(r))
+		default:
 			app.serverError(w, err)
 		}
 		return
@@ -246,7 +477,7 @@ func (app *application) userLoginShowForm(w http.ResponseWriter, r *http.Request
 // Authenticate and log the user in
 func (app *application) userLoginPost(w http.ResponseWriter, r *http.Request) {
 	var form userLoginForm
-	err := app.decodePostForm(r, &form)
+	err := app.decodePostForm(w, r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return
@@ -360,7 +591,7 @@ func (app *application) userPasswordShowForm(w http.ResponseWriter, r *http.Requ
 // Do the password update - POST /account/password/update
 func (app *application) userPasswordPost(w http.ResponseWriter, r *http.Request) {
 	var form userChangePasswordForm
-	err := app.decodePostForm(r, &form)
+	err := app.decodePostForm(w, r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
 		return

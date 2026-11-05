@@ -26,6 +26,7 @@ type application struct {
 	errorLog       *log.Logger
 	infoLog        *log.Logger
 	bookmarks      models.BookmarkModelInterface
+	tags           models.TagModelInterface
 	users          models.UserModelInterface
 	templateCache  map[string]*template.Template
 	router         *chi.Mux
@@ -40,6 +41,9 @@ func main() {
 	dsn := flag.String("dsn", defaultDSN, "SQLite data source name")
 	verbose := flag.Bool("debug", false, "Flag to produce verbose debug messages")
 	https := flag.Bool("https", false, "Flag to use TLS/https")
+	maxUsers := flag.Int("max-users", 1, "Signup closes at this many users (0 for unlimited)")
+	maxBookmarks := flag.Int("max-bookmarks", 0, "Maximum bookmarks per user (0 for unlimited)")
+	maxTags := flag.Int("max-tags", 0, "Maximum tags per user (0 for unlimited)")
 	flag.Parse()
 
 	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
@@ -67,8 +71,9 @@ func main() {
 	app := &application{
 		errorLog:       errorLog,
 		infoLog:        infoLog,
-		bookmarks:      &models.BookmarkModel{DB: db},
-		users:          &models.UserModel{DB: db},
+		bookmarks:      &models.BookmarkModel{DB: db, MaxBookmarks: *maxBookmarks, MaxTags: *maxTags},
+		tags:           &models.TagModel{DB: db},
+		users:          &models.UserModel{DB: db, MaxUsers: *maxUsers},
 		templateCache:  templateCache,
 		router:         chi.NewRouter(),
 		formDecoder:    form.NewDecoder(),

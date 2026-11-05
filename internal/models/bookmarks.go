@@ -15,10 +15,21 @@ import (
 type BookmarkModelInterface interface {
 	Insert(userID int, b *Bookmark) (int, error)
 	Get(userID, id int) (*Bookmark, error)
+	Update(userID int, b *Bookmark) error
 	Latest(userID, limit int) ([]*Bookmark, error)
 	ToggleFavourite(userID, id int) error
 	Delete(userID, id int) error
 }
+
+// Maximum lengths, in characters. Shared so that the forms, and later the
+// importer and API, all enforce the same numbers.
+const (
+	MaxTitleChars       = 200
+	MaxURLChars         = 2000
+	MaxDescriptionChars = 2000
+	MaxNotesChars       = 10000
+	MaxTagNameChars     = 50
+)
 
 // Bookmark holds one saved link and its tags.
 type Bookmark struct {
@@ -35,9 +46,12 @@ type Bookmark struct {
 	Tags        []string
 }
 
-// BookmarkModel wraps a database connection pool.
+// BookmarkModel wraps a database connection pool. The limits are per user, and
+// 0 means unlimited.
 type BookmarkModel struct {
-	DB *sql.DB
+	DB           *sql.DB
+	MaxBookmarks int
+	MaxTags      int
 }
 
 // NormaliseTags trims, lower-cases, de-duplicates and sorts tag names,
@@ -55,7 +69,8 @@ func NormaliseTags(tags []string) []string {
 }
 
 // Insert saves a new bookmark and its tags in one transaction.
-// Returns ErrDuplicateURL if the user has already saved this URL.
+// Returns ErrDuplicateURL if it would be a Duplicate of one of the user's
+// bookmarks, or ErrBookmarkLimit or ErrTagLimit. A failed save changes nothing.
 func (m *BookmarkModel) Insert(userID int, b *Bookmark) (int, error) {
 	ctx := context.Background()
 	tx, err := m.DB.BeginTx(ctx, nil)
@@ -64,17 +79,21 @@ func (m *BookmarkModel) Insert(userID int, b *Bookmark) (int, error) {
 	}
 	defer tx.Rollback() // no-op after Commit
 
+	normalisedURL, err := NormaliseURL(b.URL)
+	if err != nil {
+		return 0, err
+	}
 	created := b.Created
 	if created.IsZero() {
 		created = time.Now()
 	}
 	stmt := `INSERT INTO bookmarks
-	         (user_id, url, title, description, notes, favicon, favourite, read_later, created_at)
-	         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	result, err := tx.ExecContext(ctx, stmt, userID, b.URL, b.Title, b.Description, b.Notes,
+	         (user_id, url, normalised_url, title, description, notes, favicon, favourite, read_later, created_at)
+	         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	result, err := tx.ExecContext(ctx, stmt, userID, b.URL, normalisedURL, b.Title, b.Description, b.Notes,
 		b.Favicon, b.Favourite, b.ReadLater, created.UTC())
 	if err != nil {
-		if isUniqueViolation(err, "bookmarks.user_id, bookmarks.url") {
+		if isUniqueViolation(err, "bookmarks.user_id, bookmarks.normalised_url") {
 			return 0, ErrDuplicateURL
 		}
 		return 0, err
@@ -84,27 +103,128 @@ func (m *BookmarkModel) Insert(userID int, b *Bookmark) (int, error) {
 		return 0, err
 	}
 
-	for _, name := range NormaliseTags(b.Tags) {
-		// Create the tag if this user doesn't have it yet, then link it.
-		_, err = tx.ExecContext(ctx,
-			`INSERT INTO tags (user_id, name) VALUES (?, ?) ON CONFLICT (user_id, name) DO NOTHING`,
-			userID, name)
-		if err != nil {
-			return 0, err
-		}
-		_, err = tx.ExecContext(ctx,
-			`INSERT INTO bookmark_tags (bookmark_id, tag_id)
-			 SELECT ?, id FROM tags WHERE user_id = ? AND name = ?`,
-			id, userID, name)
-		if err != nil {
-			return 0, err
-		}
+	over, err := overLimit(ctx, tx, m.MaxBookmarks, `SELECT count(*) FROM bookmarks WHERE user_id = ?`, userID)
+	if err != nil {
+		return 0, err
+	}
+	if over {
+		return 0, ErrBookmarkLimit
+	}
+
+	tagCreated, err := addTags(ctx, tx, userID, int(id), NormaliseTags(b.Tags))
+	if err != nil {
+		return 0, err
+	}
+	if err = m.checkTagLimit(ctx, tx, userID, tagCreated); err != nil {
+		return 0, err
 	}
 
 	if err = tx.Commit(); err != nil {
 		return 0, err
 	}
 	return int(id), nil
+}
+
+// checkTagLimit returns ErrTagLimit if this save created a tag and the user is
+// now over the limit. Saves that create no tag always pass, so someone already
+// over a lowered limit can still edit their bookmarks.
+func (m *BookmarkModel) checkTagLimit(ctx context.Context, tx *sql.Tx, userID int, created bool) error {
+	if !created {
+		return nil
+	}
+	over, err := overLimit(ctx, tx, m.MaxTags, `SELECT count(*) FROM tags WHERE user_id = ?`, userID)
+	if err != nil {
+		return err
+	}
+	if over {
+		return ErrTagLimit
+	}
+	return nil
+}
+
+// addTags links a bookmark to the named tags, creating any the user doesn't
+// have yet. Links that already exist are left alone. Returns whether any tag
+// was created.
+func addTags(ctx context.Context, tx *sql.Tx, userID, bookmarkID int, names []string) (bool, error) {
+	created := false
+	for _, name := range names {
+		result, err := tx.ExecContext(ctx,
+			`INSERT INTO tags (user_id, name) VALUES (?, ?) ON CONFLICT (user_id, name) DO NOTHING`,
+			userID, name)
+		if err != nil {
+			return false, err
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return false, err
+		}
+		created = created || n > 0
+		_, err = tx.ExecContext(ctx,
+			`INSERT OR IGNORE INTO bookmark_tags (bookmark_id, tag_id)
+			 SELECT ?, id FROM tags WHERE user_id = ? AND name = ?`,
+			bookmarkID, userID, name)
+		if err != nil {
+			return false, err
+		}
+	}
+	return created, nil
+}
+
+// Update saves changes to one of the user's bookmarks, in one transaction.
+// The ID comes from b; the saved date never changes. The favicon is cleared if
+// the normalised URL changes, because it belonged to the old site. Returns
+// ErrNoRecord if the user has no such bookmark, and ErrDuplicateURL if the new
+// URL is a Duplicate of another of their bookmarks, or ErrTagLimit.
+func (m *BookmarkModel) Update(userID int, b *Bookmark) error {
+	normalisedURL, err := NormaliseURL(b.URL)
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	tx, err := m.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // no-op after Commit
+
+	stmt := `UPDATE bookmarks
+	         SET url = ?, normalised_url = ?, title = ?, description = ?, notes = ?,
+	             favourite = ?, read_later = ?,
+	             favicon = CASE WHEN normalised_url = ? THEN favicon ELSE '' END
+	         WHERE user_id = ? AND id = ?`
+	result, err := tx.ExecContext(ctx, stmt, b.URL, normalisedURL, b.Title, b.Description, b.Notes,
+		b.Favourite, b.ReadLater, normalisedURL, userID, b.ID)
+	if isUniqueViolation(err, "bookmarks.user_id, bookmarks.normalised_url") {
+		return ErrDuplicateURL
+	}
+	if err = checkAffected(result, err); err != nil {
+		return err
+	}
+
+	// Add the new links before removing old ones, and keep links that stay, so
+	// that a tag used only here keeps its ID.
+	names := NormaliseTags(b.Tags)
+	created, err := addTags(ctx, tx, userID, b.ID, names)
+	if err != nil {
+		return err
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(names)), ",")
+	args := []any{b.ID, userID}
+	for _, name := range names {
+		args = append(args, name)
+	}
+	stmt = `DELETE FROM bookmark_tags
+	        WHERE bookmark_id = ?
+	          AND tag_id NOT IN (SELECT id FROM tags WHERE user_id = ? AND name IN (` + placeholders + `))`
+	if _, err = tx.ExecContext(ctx, stmt, args...); err != nil {
+		return err
+	}
+
+	// Checked after removing old links, so swapping a tag at the limit works.
+	if err = m.checkTagLimit(ctx, tx, userID, created); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // Columns selected for a Bookmark, with the tags joined into one

@@ -16,17 +16,18 @@ CREATE TABLE sessions (
 CREATE INDEX sessions_expiry_idx ON sessions (expiry);
 
 CREATE TABLE bookmarks (
-    id          INTEGER PRIMARY KEY,
-    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    url         TEXT NOT NULL,
-    title       TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    notes       TEXT NOT NULL DEFAULT '',
-    favicon     TEXT NOT NULL DEFAULT '',
-    favourite   BOOLEAN NOT NULL DEFAULT FALSE,
-    read_later  BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at  DATETIME NOT NULL,
-    UNIQUE (user_id, url)
+    id             INTEGER PRIMARY KEY,
+    user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    url            TEXT NOT NULL,
+    normalised_url TEXT NOT NULL,
+    title          TEXT NOT NULL,
+    description    TEXT NOT NULL DEFAULT '',
+    notes          TEXT NOT NULL DEFAULT '',
+    favicon        TEXT NOT NULL DEFAULT '',
+    favourite      BOOLEAN NOT NULL DEFAULT FALSE,
+    read_later     BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at     DATETIME NOT NULL,
+    UNIQUE (user_id, normalised_url)
 );
 CREATE INDEX bookmarks_user_created_idx ON bookmarks (user_id, created_at);
 
@@ -44,7 +45,19 @@ CREATE TABLE bookmark_tags (
 );
 CREATE INDEX bookmark_tags_tag_idx ON bookmark_tags (tag_id);
 
+-- A Tag exists only while at least one Bookmark uses it. Foreign key cascades
+-- fire this too, so it covers every way a Bookmark can lose a Tag.
+-- +goose StatementBegin
+CREATE TRIGGER tags_remove_unused AFTER DELETE ON bookmark_tags
+BEGIN
+    DELETE FROM tags
+    WHERE id = OLD.tag_id
+      AND NOT EXISTS (SELECT 1 FROM bookmark_tags WHERE tag_id = OLD.tag_id);
+END;
+-- +goose StatementEnd
+
 -- +goose Down
+DROP TRIGGER tags_remove_unused;
 DROP TABLE bookmark_tags;
 DROP TABLE tags;
 DROP TABLE bookmarks;

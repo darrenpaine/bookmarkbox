@@ -4,12 +4,24 @@ import (
 	"github.com/darrenpaine/bookmarkbox/internal/models"
 )
 
-type UserModel struct{}
+// FullEmail is rejected by Insert as if another signup took the last place.
+const FullEmail = "full@example.com"
+
+// SignupClosed makes SignupOpen report that signup is full.
+type UserModel struct {
+	SignupClosed bool
+}
+
+func (m *UserModel) SignupOpen() (bool, error) {
+	return !m.SignupClosed, nil
+}
 
 func (m *UserModel) Insert(name, email, password string) error {
 	switch email {
 	case "dupe@example.com":
 		return models.ErrDuplicateEmail
+	case FullEmail:
+		return models.ErrUserLimit
 	default:
 		return nil
 	}

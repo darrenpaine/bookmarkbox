@@ -6,9 +6,11 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/darrenpaine/bookmarkbox/internal/assert"
+	"github.com/darrenpaine/bookmarkbox/internal/models/mocks"
 )
 
 func TestPing(t *testing.T) {
@@ -309,6 +311,20 @@ func TestBookmarkCreate(t *testing.T) {
 			wantError: "This field cannot be blank",
 		},
 		{
+			name:      "Title too long",
+			url:       "https://pkg.go.dev",
+			title:     strings.Repeat("a", 201),
+			wantCode:  http.StatusUnprocessableEntity,
+			wantError: "This field cannot be more than 200 characters long",
+		},
+		{
+			name:      "URL too long",
+			url:       "https://pkg.go.dev/" + strings.Repeat("a", 2000),
+			title:     "Long",
+			wantCode:  http.StatusUnprocessableEntity,
+			wantError: "This field cannot be more than 2000 characters long",
+		},
+		{
 			name:      "Duplicate URL",
 			url:       "https://go.dev/doc/effective_go",
 			title:     "Effective Go",
@@ -332,6 +348,273 @@ func TestBookmarkCreate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBookmarkEdit(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+
+	t.Run("Unauthenticated redirects to login", func(t *testing.T) {
+		code, header, _ := ts.get(t, "/bookmarks/1/edit")
+		assert.Equal(t, code, http.StatusSeeOther)
+		assert.StringContains(t, header.Get("Location"), "/user/login")
+	})
+
+	ts.login(t)
+
+	t.Run("Form is filled in", func(t *testing.T) {
+		code, _, body := ts.get(t, "/bookmarks/1/edit")
+		assert.Equal(t, code, http.StatusOK)
+		assert.StringContains(t, body, "<form action='/bookmarks/1/edit' method='POST'>")
+		assert.StringContains(t, body, "value='Effective Go'")
+		assert.StringContains(t, body, "value='docs, go'")
+	})
+
+	t.Run("Other user's bookmark", func(t *testing.T) {
+		code, _, _ := ts.get(t, "/bookmarks/2/edit")
+		assert.Equal(t, code, http.StatusNotFound)
+	})
+
+	tests := []struct {
+		name      string
+		path      string
+		url       string
+		title     string
+		wantCode  int
+		wantError string
+	}{
+		{"Valid", "/bookmarks/1/edit", "https://go.dev/doc", "Docs", http.StatusSeeOther, ""},
+		{"Invalid stays on edit form", "/bookmarks/1/edit", "https://go.dev/doc", "", http.StatusUnprocessableEntity, "This field cannot be blank"},
+		{"Duplicate URL", "/bookmarks/1/edit", mocks.DuplicateURL, "Docs", http.StatusUnprocessableEntity, "You have already saved this address"},
+		{"Other user's bookmark", "/bookmarks/2/edit", "https://go.dev/doc", "Docs", http.StatusNotFound, ""},
+		{"Invalid ID", "/bookmarks/foo/edit", "https://go.dev/doc", "Docs", http.StatusNotFound, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			form := url.Values{}
+			form.Add("url", tt.url)
+			form.Add("title", tt.title)
+			code, header, body := ts.postForm(t, tt.path, form)
+			assert.Equal(t, code, tt.wantCode)
+			if tt.wantError != "" {
+				assert.StringContains(t, body, tt.wantError)
+				assert.StringContains(t, body, "<form action='/bookmarks/1/edit' method='POST'>")
+			}
+			if tt.wantCode == http.StatusSeeOther {
+				assert.Equal(t, header.Get("Location"), "/bookmarks/1")
+			}
+		})
+	}
+
+	t.Run("Cross origin post blocked", func(t *testing.T) {
+		code, _, _ := ts.postFormCrossOrigin(t, "/bookmarks/1/edit", url.Values{})
+		assert.Equal(t, code, http.StatusForbidden)
+	})
+}
+
+func TestTags(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+
+	t.Run("Unauthenticated redirects to login", func(t *testing.T) {
+		code, header, _ := ts.get(t, "/tags")
+		assert.Equal(t, code, http.StatusSeeOther)
+		assert.StringContains(t, header.Get("Location"), "/user/login")
+	})
+
+	ts.login(t)
+
+	t.Run("List", func(t *testing.T) {
+		code, _, body := ts.get(t, "/tags")
+		assert.Equal(t, code, http.StatusOK)
+		assert.StringContains(t, body, "<form action='/tags/2/rename' method='POST'>")
+	})
+
+	tests := []struct {
+		name     string
+		path     string
+		newName  string
+		confirm  string
+		wantCode int
+		wantBody string
+	}{
+		{"Rename", "/tags/1/rename", "documentation", "", http.StatusSeeOther, ""},
+		{"Same name after normalising", "/tags/1/rename", " DOCS ", "", http.StatusSeeOther, ""},
+		{"Blank", "/tags/1/rename", "  ", "", http.StatusUnprocessableEntity, "cannot be blank"},
+		{"Comma", "/tags/1/rename", "a,b", "", http.StatusUnprocessableEntity, "cannot contain a comma"},
+		{"Too long", "/tags/1/rename", strings.Repeat("a", 51), "", http.StatusUnprocessableEntity, "50 characters or fewer"},
+		{"Existing name asks first", "/tags/1/rename", "go", "", http.StatusOK, "will merge into it, affecting\n    1 bookmark."},
+		{"Plural count", "/tags/2/rename", "docs", "", http.StatusOK, "3 bookmarks."},
+		{"Confirmed merge", "/tags/1/rename", "go", "true", http.StatusSeeOther, ""},
+		{"Other user's tag", "/tags/9/rename", "x", "", http.StatusNotFound, ""},
+		{"Invalid ID", "/tags/foo/rename", "x", "", http.StatusNotFound, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			form := url.Values{}
+			form.Add("name", tt.newName)
+			if tt.confirm != "" {
+				form.Add("confirm", tt.confirm)
+			}
+			code, _, body := ts.postForm(t, tt.path, form)
+			assert.Equal(t, code, tt.wantCode)
+			if tt.wantBody != "" {
+				assert.StringContains(t, body, tt.wantBody)
+			}
+		})
+	}
+
+	t.Run("Confirmation posts the merge", func(t *testing.T) {
+		form := url.Values{}
+		form.Add("name", "go")
+		_, _, body := ts.postForm(t, "/tags/1/rename", form)
+		assert.StringContains(t, body, "<input type='hidden' name='confirm' value='true'>")
+		assert.StringContains(t, body, "<input type='hidden' name='name' value='go'>")
+	})
+
+	t.Run("Cross origin post blocked", func(t *testing.T) {
+		code, _, _ := ts.postFormCrossOrigin(t, "/tags/1/rename", url.Values{})
+		assert.Equal(t, code, http.StatusForbidden)
+	})
+}
+
+func TestBookmarkLimits(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+	ts.login(t)
+
+	tests := []struct {
+		name      string
+		path      string
+		title     string
+		tags      string
+		wantError string
+	}{
+		{"Bookmark limit", "/bookmarks/new", mocks.OverBookmarkLimitTitle, "", "You have reached your limit of bookmarks"},
+		{"Tag limit on add", "/bookmarks/new", "Fine", mocks.OverTagLimitTag, "You have reached your limit of tags"},
+		{"Tag limit on edit", "/bookmarks/1/edit", "Fine", mocks.OverTagLimitTag, "You have reached your limit of tags"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			form := url.Values{}
+			form.Add("url", "https://pkg.go.dev")
+			form.Add("title", tt.title)
+			form.Add("tags", tt.tags)
+			code, _, body := ts.postForm(t, tt.path, form)
+			assert.Equal(t, code, http.StatusUnprocessableEntity)
+			assert.StringContains(t, body, tt.wantError)
+			assert.StringContains(t, body, "value='"+tt.title+"'")
+		})
+	}
+}
+
+func TestSignupClosed(t *testing.T) {
+	signupForm := func() url.Values {
+		form := url.Values{}
+		form.Add("name", "Carol")
+		form.Add("email", "carol@example.com")
+		form.Add("password", "pa$$word")
+		return form
+	}
+
+	t.Run("Open shows link and form", func(t *testing.T) {
+		app := newTestApplication(t)
+		ts := newTestServer(t, app.routes())
+		defer ts.Close()
+		_, _, home := ts.get(t, "/")
+		assert.StringContains(t, home, "<a href='/user/signup'>Signup</a>")
+		_, _, body := ts.get(t, "/user/signup")
+		assert.StringContains(t, body, "<form action='/user/signup'")
+	})
+
+	t.Run("Closed hides link and form", func(t *testing.T) {
+		app := newTestApplication(t)
+		app.users = &mocks.UserModel{SignupClosed: true}
+		ts := newTestServer(t, app.routes())
+		defer ts.Close()
+
+		_, _, home := ts.get(t, "/")
+		if strings.Contains(home, "/user/signup") {
+			t.Error("home page still links to signup")
+		}
+		assert.StringContains(t, home, "<a href='/user/login'>Log in</a>")
+
+		code, _, body := ts.get(t, "/user/signup")
+		assert.Equal(t, code, http.StatusOK)
+		assert.StringContains(t, body, "Signup is closed")
+		if strings.Contains(body, "<form action='/user/signup'") {
+			t.Error("closed page shows the form")
+		}
+
+		code, _, body = ts.postForm(t, "/user/signup", signupForm())
+		assert.Equal(t, code, http.StatusForbidden)
+		assert.StringContains(t, body, "Signup is closed")
+
+		// Logging in must still work.
+		ts.login(t)
+	})
+
+	t.Run("Losing the race for the last place", func(t *testing.T) {
+		app := newTestApplication(t)
+		ts := newTestServer(t, app.routes())
+		defer ts.Close()
+		form := signupForm()
+		form.Set("email", mocks.FullEmail)
+		code, _, body := ts.postForm(t, "/user/signup", form)
+		assert.Equal(t, code, http.StatusForbidden)
+		assert.StringContains(t, body, "Signup is closed")
+	})
+}
+
+func TestBookmarkCreateTextLimits(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+	ts.login(t)
+
+	tests := []struct {
+		name      string
+		field     string
+		value     string
+		wantCode  int
+		wantError string
+	}{
+		{"Description at limit", "description", strings.Repeat("a", 2000), http.StatusSeeOther, ""},
+		{"Description too long", "description", strings.Repeat("a", 2001), http.StatusUnprocessableEntity, "more than 2000 characters"},
+		{"Notes at limit", "notes", strings.Repeat("a", 10000), http.StatusSeeOther, ""},
+		{"Notes too long", "notes", strings.Repeat("a", 10001), http.StatusUnprocessableEntity, "more than 10000 characters"},
+		{"Multi-byte notes count characters", "notes", strings.Repeat("é", 10000), http.StatusSeeOther, ""},
+		{"Tag at limit", "tags", strings.Repeat("a", 50), http.StatusSeeOther, ""},
+		{"Tag too long", "tags", "go, " + strings.Repeat("a", 51), http.StatusUnprocessableEntity, "50 characters or fewer"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			form := url.Values{}
+			form.Add("url", "https://pkg.go.dev")
+			form.Add("title", "Go packages")
+			form.Add(tt.field, tt.value)
+			code, _, body := ts.postForm(t, "/bookmarks/new", form)
+			assert.Equal(t, code, tt.wantCode)
+			if tt.wantError != "" {
+				assert.StringContains(t, body, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestFormSizeLimit(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+	ts.login(t)
+
+	form := url.Values{}
+	form.Add("notes", strings.Repeat("a", maxFormBytes))
+	code, _, _ := ts.postForm(t, "/bookmarks/new", form)
+	assert.Equal(t, code, http.StatusBadRequest)
 }
 
 // Favourite and delete only work on the user's own bookmarks.

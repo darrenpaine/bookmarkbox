@@ -27,6 +27,6 @@
 {{else}}
 <h2>Welcome to BookmarkBox</h2>
 <p>Save, tag and star your bookmarks in one place.</p>
-<p><a href='/user/signup'>Sign up</a> or <a href='/user/login'>log in</a> to get started.</p>
+<p>{{if .SignupOpen}}<a href='/user/signup'>Sign up</a> or {{end}}<a href='/user/login'>Log in</a> to get started.</p>
 {{end}}
 {{end}}
