@@ -1,27 +1,35 @@
 {{define "title"}}Tags{{end}}
 {{define "main"}}
-<h2>Your Tags</h2>
+<h1>Your tags</h1>
 {{if .Tags}}
-<table class='tags'>
-    <tr>
-        <th>Tag</th>
-        <th>Bookmarks</th>
-        <th>Rename</th>
-    </tr>
-    {{range .Tags}}
-    <tr>
-        <td><span class='tag'>{{.Name}}</span></td>
-        <td>{{.BookmarkCount}}</td>
-        <td>
-            <form action='/tags/{{.ID}}/rename' method='POST'>
-                <input type='text' name='name' value='{{.Name}}' aria-label='New name for {{.Name}}'>
-                <button>Rename</button>
-            </form>
-        </td>
-    </tr>
-    {{end}}
+<table class='tag-table'>
+    <thead>
+        <tr>
+            <th scope='col'>Tag</th>
+            <th scope='col' class='count'>Bookmarks</th>
+            <th scope='col'>Rename</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .Tags}}
+        <tr>
+            <td><span class='tag {{colour .Name}}'>{{.Name}}</span></td>
+            <td class='count'>{{.BookmarkCount}}</td>
+            <td>
+                <form action='/tags/{{.ID}}/rename' method='POST'>
+                    <div class='rename'>
+                        <input type='text' name='name' value='{{.Name}}' aria-label='New name for {{.Name}}' maxlength='50'>
+                        <button class='button'>Rename</button>
+                    </div>
+                </form>
+            </td>
+        </tr>
+        {{end}}
+    </tbody>
 </table>
 {{else}}
-<p>No tags yet. Add some when you save a bookmark.</p>
+<div class='empty'>
+    <p>No tags yet. Add some when you save a bookmark.</p>
+</div>
 {{end}}
 {{end}}

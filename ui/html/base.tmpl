@@ -4,33 +4,41 @@
     <head>
         <meta charset='utf-8'>
         <meta name='viewport' content='width=device-width, initial-scale=1'>
+        <meta name='color-scheme' content='light dark'>
+        <!-- htmx must not add inline styles or run inline code: the CSP forbids both -->
+        <meta name='htmx-config' content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false}'>
         <title>{{template "title" .}} - BookmarkBox</title>
-        <!-- Link to the CSS stylesheet and favicon -->
         <link rel='stylesheet' href='/static/css/main.css'>
-        <link rel='shortcut icon' href='/static/img/favicon.ico'
-            type='image/x-icon'>
-        <!-- Also link to some fonts hosted by Google -->
-        <link rel='stylesheet'
-            href='https://fonts.googleapis.com/css?family=Ubuntu+Mono:400,700'>
+        <link rel='icon' href='/static/img/icon.svg' type='image/svg+xml'>
+        <link rel='icon' href='/static/img/icon-32.png' sizes='32x32' type='image/png'>
+        <link rel='apple-touch-icon' href='/static/img/apple-touch-icon.png'>
+        <script src='/static/js/htmx-2.0.11.min.js' defer></script>
     </head>
     <body>
-        <header>
-            <h1><a href='/'>BookmarkBox</a></h1>
+        <header class='bar'>
+            <a class='wordmark' href='/'>bookmarkbox</a>
+            {{if .IsAuthenticated}}
+            <div class='nav-wide'>{{template "nav" .}}</div>
+            <a class='button primary' href='/bookmarks/new'>Add<span class='wide-only'>&nbsp;bookmark</span></a>
+            {{else}}
+            <div class='bar-end'>
+                {{if .SignupOpen}}<a class='button' href='/user/signup'>Sign up</a>{{end}}
+                <a class='button primary' href='/user/login'>Log in</a>
+            </div>
+            {{end}}
         </header>
-        <!-- Invoke the navigation template -->
-        {{template "nav" .}}
+        {{if .IsAuthenticated}}
+        <div class='nav-narrow'>{{template "nav" .}}</div>
+        {{end}}
         <main>
-            <!-- Display the flash message if one exists -->
             {{with .Flash}}
-            <div class='flash'>{{.}}</div>
+            <p class='flash{{if $.FlashIsError}} flash-error{{end}}' role='status'>{{.}}</p>
             {{end}}
             {{template "main" .}}
         </main>
         <footer>
-            <!-- Update the footer to include the current year -->
-            Powered by <a href='https://golang.org/'>Go</a> in {{.CurrentYear}}
+            <a href='/about'>About BookmarkBox</a>
         </footer>
-        <script src="/static/js/main.js" type="text/javascript"></script>
     </body>
 </html>
 {{end}}

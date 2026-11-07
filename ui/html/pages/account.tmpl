@@ -1,24 +1,17 @@
 {{define "title"}}Account{{end}}
 {{define "main"}}
-<h2>Your Account</h2>
-{{with .User}}
-<table class='account'>
-    <tr>
-        <td>Name</td>
-        <td>{{.Name}}</td>
-    </tr>
-    <tr>
-        <td>Email</td>
-        <td>{{.Email}}</td>
-    </tr>
-    <tr>
-        <td>Joined</td>
-        <td>{{humanDate .Created}}</td>
-    </tr>
-    <tr>
-        <td>Password</td>
-        <td><a href="/account/password/update">Change Password</a></td>
-    </tr>
-</table>
-{{end}}
+<div class='narrow'>
+    <h1>Your account</h1>
+    {{with .User}}
+    <dl class='details'>
+        <dt>Name</dt>
+        <dd>{{.Name}}</dd>
+        <dt>Email</dt>
+        <dd>{{.Email}}</dd>
+        <dt>Joined</dt>
+        <dd>{{humanDate .Created}}</dd>
+    </dl>
+    <p><a class='button' href='/account/password/update'>Change password</a></p>
+    {{end}}
+</div>
 {{end}}

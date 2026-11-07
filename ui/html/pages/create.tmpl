@@ -1,4 +1,7 @@
-{{define "title"}}Add a Bookmark{{end}}
+{{define "title"}}Add a bookmark{{end}}
 {{define "main"}}
-{{template "bookmarkform" .}}
+<div class='narrow'>
+    <h1>Add a bookmark</h1>
+    {{template "bookmarkform" .}}
+</div>
 {{end}}
