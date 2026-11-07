@@ -18,6 +18,9 @@ type BookmarkModelInterface interface {
 	Update(userID int, b *Bookmark) error
 	Latest(userID, limit int) ([]*Bookmark, error)
 	ToggleFavourite(userID, id int) error
+	ToggleReadLater(userID, id int) error
+	AddTag(userID, id int, name string) error
+	RemoveTag(userID, id int, name string) error
 	Delete(userID, id int) error
 }
 
@@ -295,6 +298,82 @@ func (m *BookmarkModel) ToggleFavourite(userID, id int) error {
 	result, err := m.DB.Exec(
 		`UPDATE bookmarks SET favourite = NOT favourite WHERE user_id = ? AND id = ?`, userID, id)
 	return checkAffected(result, err)
+}
+
+// ToggleReadLater flips the Read later flag on one of the user's bookmarks.
+func (m *BookmarkModel) ToggleReadLater(userID, id int) error {
+	result, err := m.DB.Exec(
+		`UPDATE bookmarks SET read_later = NOT read_later WHERE user_id = ? AND id = ?`, userID, id)
+	return checkAffected(result, err)
+}
+
+// AddTag adds one tag to one of the user's bookmarks, creating the tag if the
+// user doesn't have it yet. Adding a tag the bookmark already has changes
+// nothing. Returns ErrNoRecord, or ErrTagLimit if a new tag would pass the limit.
+func (m *BookmarkModel) AddTag(userID, id int, name string) error {
+	names := NormaliseTags([]string{name})
+	if len(names) == 0 {
+		return nil
+	}
+	ctx := context.Background()
+	tx, err := m.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // no-op after Commit
+
+	if err = ownBookmark(ctx, tx, userID, id); err != nil {
+		return err
+	}
+	created, err := addTags(ctx, tx, userID, id, names)
+	if err != nil {
+		return err
+	}
+	if err = m.checkTagLimit(ctx, tx, userID, created); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// RemoveTag removes one tag from one of the user's bookmarks. The tag itself
+// is removed too if nothing else uses it. Removing a tag the bookmark doesn't
+// have changes nothing. Returns ErrNoRecord if the user has no such bookmark.
+func (m *BookmarkModel) RemoveTag(userID, id int, name string) error {
+	names := NormaliseTags([]string{name})
+	ctx := context.Background()
+	tx, err := m.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() // no-op after Commit
+
+	if err = ownBookmark(ctx, tx, userID, id); err != nil {
+		return err
+	}
+	if len(names) > 0 {
+		_, err = tx.ExecContext(ctx,
+			`DELETE FROM bookmark_tags
+			 WHERE bookmark_id = ? AND tag_id = (SELECT id FROM tags WHERE user_id = ? AND name = ?)`,
+			id, userID, names[0])
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// ownBookmark returns ErrNoRecord unless the user has a bookmark with this ID.
+func ownBookmark(ctx context.Context, tx *sql.Tx, userID, id int) error {
+	var exists bool
+	err := tx.QueryRowContext(ctx,
+		`SELECT EXISTS(SELECT 1 FROM bookmarks WHERE user_id = ? AND id = ?)`, userID, id).Scan(&exists)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrNoRecord
+	}
+	return nil
 }
 
 // Delete removes one of the user's bookmarks (its tag links cascade).
