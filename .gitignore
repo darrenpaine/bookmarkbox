@@ -1,4 +1,6 @@
 *.pem
+# Local settings
+.env
 # Local SQLite database files
 *.db
 *.db-wal

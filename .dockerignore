@@ -1,0 +1,8 @@
+# Only what the build needs, so databases, keys and .env stay out of the image.
+*
+!cmd
+!internal
+!migrations
+!ui
+!go.mod
+!go.sum
