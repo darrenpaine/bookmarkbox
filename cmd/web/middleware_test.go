@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -66,5 +67,29 @@ func TestCsrfGet(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("GET should always be allowed, got %d", rec.Code)
+	}
+}
+
+// Health checks stay out of the log, and other requests are logged.
+func TestLogRequestSkipsPing(t *testing.T) {
+	tests := []struct {
+		path string
+		want string
+	}{
+		{path: "/ping", want: ""},
+		{path: "/about", want: "uri=/about"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			var out bytes.Buffer
+			app := &application{logger: slog.New(slog.NewTextHandler(&out, nil))}
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+			app.logRequest(next).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, tt.path, nil))
+			if tt.want == "" {
+				assert.Equal(t, out.String(), "")
+				return
+			}
+			assert.StringContains(t, out.String(), tt.want)
+		})
 	}
 }
