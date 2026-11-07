@@ -4,6 +4,8 @@ A personal bookmark manager in Go, with tags and favourites.
 
 Based on the 'SnippetBox' project from ["Let's Go" by Alex Edwards](https://lets-go.alexedwards.net/).
 
+[![CI Status](https://github.com/darrenpaine/bookmarkbox/actions/workflows/ci.yml/badge.svg)](https://github.com/darrenpaine/bookmarkbox/actions/workflows/ci.yml)
+
 ### Updates
 - Change to use the Chi router (clearer routes and middleware setup)
 - Use native CORS protection included in Go 1.25+
