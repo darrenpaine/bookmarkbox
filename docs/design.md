@@ -159,33 +159,49 @@ Routes sit under `/api/v1`: create a Bookmark, list Tags, "is this URL already s
 - Fetch title, description and favicon in a goroutine after saving, with timeouts and `context` cancellation.
 - Reject private and loopback addresses **after** DNS lookup, including on redirects, unless `FETCH_ALLOW_PRIVATE=true`. Demo mode forces this off.
 
-## Configuration (Planned)
+## Configuration
 
-Existing flags stay for local use, with environment variables setting their defaults. Today the app has `-addr`, `-dsn`, `-debug`, `-https`, `-max-users` (default `1`), `-max-bookmarks` and `-max-tags` (default `0`), and `-https` also sets the cookie's Secure flag. `make run` passes `-max-users 0`.
+Environment variables set the defaults, and flags override them for local use. An invalid value stops start-up with an error.
+
+| Variable | Flag | Default | Purpose |
+|---|---|---|---|
+| `PORT` | `-addr` | `4000` | Listening port; `-addr` takes a full address |
+| `DATABASE_PATH` | `-db` | `./bookmarkbox.db` | SQLite file (`/data/bookmarkbox.db` in the container) |
+| `COOKIE_SECURE` | `-cookie-secure` | `true` | Secure session cookie; set `false` for plain HTTP on a home network |
+| `MAX_USERS` | `-max-users` | `1` | Signup closes at this many Users; `0` is unlimited |
+| `MAX_BOOKMARKS_PER_USER` | `-max-bookmarks` | `0` | `0` is unlimited |
+| `MAX_TAGS_PER_USER` | `-max-tags` | `0` | `0` is unlimited |
+
+- `-debug` shows stack traces in the browser. It is for local use and has no environment variable.
+- The app takes a file path rather than a DSN, and always adds the foreign key, WAL and busy timeout settings, so they can't be left out by accident.
+- `make run` passes `-max-users 0` and `-cookie-secure=false`.
+
+**Planned**, each arriving with the feature that uses it:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PORT` | `4000` | Listening port |
-| `DATABASE_PATH` | `./bookmarkbox.db` | SQLite file (`/data/bookmarkbox.db` in the container) |
-| `COOKIE_SECURE` | `true` | Secure session cookie; set `false` for plain HTTP on a home network |
-| `MAX_USERS` | `1` | Signup closes at this many Users; `0` is unlimited |
-| `MAX_BOOKMARKS_PER_USER` | `0` | `0` is unlimited |
-| `MAX_TAGS_PER_USER` | `0` | `0` is unlimited |
 | `TRUSTED_PROXY` | unset | When set, the real client IP is taken from the forwarded header |
 | `CORS_ORIGINS` | unset | Origins allowed to call `/api` |
 | `FETCH_ALLOW_PRIVATE` | `false` | Let metadata fetching reach private addresses |
 | `DEMO_MODE` | `false` | Turn on the demo behaviour below |
 
-## Deployment (Planned)
+## Deployment
 
 ### Container and self-hosting
 
-- Multi-stage Dockerfile producing a small image. `modernc.org/sqlite` needs no cgo, so the binary can be static.
-- `docker-compose.yml` has one `bookmarkbox` service, a named volume at `/data`, and `restart: unless-stopped`.
-- The app serves plain HTTP, and TLS is handled by the self-hoster's proxy.
-- Backups use `VACUUM INTO` or `sqlite3 .backup`. Copying a live WAL database file is not safe.
+[self-hosting.md](self-hosting.md) has the instructions.
 
-### Public demo
+- A multi-stage Dockerfile builds a static binary, because `modernc.org/sqlite` needs no cgo. The final image is pinned Alpine with the `sqlite` package, which provides the backup command, and runs as a non-root user.
+- `docker-compose.yml` has one `bookmarkbox` service, a named volume at `/data`, and `restart: unless-stopped`. It publishes on `127.0.0.1` unless `BIND_ADDRESS` says otherwise.
+- The app serves plain HTTP, and TLS is handled by the self-hoster's proxy.
+- The image's health check calls `/ping`. `wget` uses GET because the route answers nothing else.
+- Backups use `sqlite3 .backup`. Copying a live WAL database file is not safe.
+
+### Shutdown
+
+On SIGTERM or an interrupt the app stops accepting connections, lets requests in progress finish for up to 8 seconds, then closes the database, which checkpoints the WAL file. Docker kills a container 10 seconds after asking it to stop, so the limit sits below that.
+
+### Public demo (Planned)
 
 Render's free web service runs the same image with `DEMO_MODE=true`, `MAX_USERS=25`, `MAX_BOOKMARKS_PER_USER=300` and `MAX_TAGS_PER_USER=300`. Render figures were checked on 2026-11-03 and 2026-11-04 and should be rechecked before deploying.
 
@@ -195,23 +211,28 @@ Render's free web service runs the same image with `DEMO_MODE=true`, `MAX_USERS=
 - The seed of about 200 Bookmarks stays below the limits of 300 Bookmarks and 300 Tags, leaving room for visitors.
 - Handlers block password changes and token creation for the Demo User.
 
-### Rate limiting
+### Rate limiting (Planned)
 
 An in-memory, per-IP limit of about 10 attempts a minute on login and signup. bcrypt is deliberately slow, so a burst could otherwise stall a small instance. The forwarded client IP is only trusted when `TRUSTED_PROXY` is set.
 
 ### CI
 
-GitHub Actions runs `go test`, `go vet` and `staticcheck`.
+GitHub Actions runs on pull requests and pushes to `main`, with two jobs:
+
+- `go vet`, `staticcheck` and `go test -race`.
+- `scripts/smoke-test.sh`, which builds the real image and tests it through Docker Compose: health check, non-root user, saving data, restart, shutdown, backup and restore.
+
+Images aren't published. Compose builds from the repository.
 
 ### Logging
 
-Currently `log.Logger`, moving to `log/slog` for structured logs.
+`log/slog` text logs on stdout, for all levels. `docker compose logs` is read by people, so there is no JSON option. Requests to `/ping` are skipped, because health checks would flood the log.
 
 ## Testing
 
 - Handler tests in `cmd/web` use the model mocks and a test server.
 - Model tests in `internal/models` run against a temporary SQLite file with real migrations and `testdata/setup.sql`. They need no set-up.
-- Run everything with `make test`.
+- Run everything with `make test`. `make smoke` tests the real image, and needs Docker.
 
 ## AI Tag suggestions (Possible later)
 

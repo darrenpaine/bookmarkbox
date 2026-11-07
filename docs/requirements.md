@@ -92,7 +92,7 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 - HTTPS comes from the self-hoster's own reverse proxy. The docs include a proxy example, and plain HTTP on a home network is supported.
 - A fresh install allows one User. A self-hoster can raise the limit, for example for family.
 - There is no default account.
-- The docs give a safe backup command.
+- The docs give safe backup and restore commands.
 
 ## Public demo
 
@@ -119,8 +119,8 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 |---|---|---|
 | 1 | **Foundations:** rename, SQLite, migrations, Bookmarks and Tags | Done |
 | 2 | **Model fixes and editing:** update Bookmarks, rename Tags, Duplicates by normalised URL, remove unused Tags, text limits, User, Bookmark and Tag limits | Done |
-| 3 | **Packaging:** environment config, `slog`, Dockerfile, compose, CI | Next |
-| 4 | **Restyle:** own CSS, dark mode, htmx actions | Planned |
+| 3 | **Packaging:** environment config, `slog`, Dockerfile, compose, CI | Done |
+| 4 | **Restyle:** own CSS, dark mode, htmx actions | Next |
 | 5 | **List views and search** | Planned |
 | 6 | **Import and export,** with round-trip tests | Planned |
 | 7 | **Public demo** on Render; needs step 6 for its seed data | Planned |
@@ -128,6 +128,6 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 | 9 | **Browser extension:** popup, then right-click, then direct import | Planned |
 | 10 | **Background metadata and favicons** | Planned |
 
-The login and signup rate limit belongs with step 7 at the latest, because the demo is the first public deployment.
+The login and signup rate limit belongs with step 7 at the latest, because the demo is the first public deployment. Until then, the self-hosting docs warn about it.
 
 README still to finish: screenshot, an architecture paragraph, and a "Design decisions" section linking to the ADRs.
