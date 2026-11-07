@@ -2,13 +2,17 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"database/sql"
+	"errors"
 	"flag"
+	"fmt"
 	"html/template"
-	"log"
+	"log/slog"
+	"net"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/darrenpaine/bookmarkbox/internal/models"
@@ -23,8 +27,7 @@ import (
 
 // The application struct holds application-wide dependencies for the web application.
 type application struct {
-	errorLog       *log.Logger
-	infoLog        *log.Logger
+	logger         *slog.Logger
 	bookmarks      models.BookmarkModelInterface
 	tags           models.TagModelInterface
 	users          models.UserModelInterface
@@ -35,50 +38,60 @@ type application struct {
 	debug          bool
 }
 
+// How long requests get to finish on shutdown. Docker kills a container 10
+// seconds after asking it to stop, so this leaves time to close the database.
+const shutdownTimeout = 8 * time.Second
+
 func main() {
-	// Define and parse command line options -addr and -dsn
-	addr := flag.String("addr", ":4000", "HTTP network address")
-	dsn := flag.String("dsn", defaultDSN, "SQLite data source name")
-	verbose := flag.Bool("debug", false, "Flag to produce verbose debug messages")
-	https := flag.Bool("https", false, "Flag to use TLS/https")
-	maxUsers := flag.Int("max-users", 1, "Signup closes at this many users (0 for unlimited)")
-	maxBookmarks := flag.Int("max-bookmarks", 0, "Maximum bookmarks per user (0 for unlimited)")
-	maxTags := flag.Int("max-tags", 0, "Maximum tags per user (0 for unlimited)")
-	flag.Parse()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	infoLog := log.New(os.Stdout, "INFO\t", log.Ldate|log.Ltime)
-	errorLog := log.New(os.Stderr, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
-
-	// Database connection
-	db, err := openDB(*dsn)
+	cfg, err := parseConfig(os.Args[1:], os.Getenv)
 	if err != nil {
-		errorLog.Fatal(err)
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
+		logger.Error(err.Error())
+		os.Exit(2)
+	}
+	if err := run(cfg, logger); err != nil {
+		logger.Error(err.Error())
+		os.Exit(1)
+	}
+}
+
+// run serves the application until it gets an interrupt or terminate signal.
+func run(cfg config, logger *slog.Logger) error {
+	// Database connection
+	db, err := openDB(sqliteDSN(cfg.dbPath))
+	if err != nil {
+		return err
 	}
 	defer db.Close()
 
 	templateCache, err := newTemplateCache()
 	if err != nil {
-		errorLog.Fatal(err)
+		return err
 	}
 
 	// Session management - 12 hour timeout
+	sessionStore := sqlite3store.New(db)
+	defer sessionStore.StopCleanup()
 	sessionManager := scs.New()
-	sessionManager.Store = sqlite3store.New(db)
+	sessionManager.Store = sessionStore
 	sessionManager.Lifetime = 12 * time.Hour
-	sessionManager.Cookie.Secure = *https
+	sessionManager.Cookie.Secure = cfg.cookieSecure
 	sessionManager.Cookie.SameSite = http.SameSiteStrictMode
 
 	app := &application{
-		errorLog:       errorLog,
-		infoLog:        infoLog,
-		bookmarks:      &models.BookmarkModel{DB: db, MaxBookmarks: *maxBookmarks, MaxTags: *maxTags},
+		logger:         logger,
+		bookmarks:      &models.BookmarkModel{DB: db, MaxBookmarks: cfg.maxBookmarks, MaxTags: cfg.maxTags},
 		tags:           &models.TagModel{DB: db},
-		users:          &models.UserModel{DB: db, MaxUsers: *maxUsers},
+		users:          &models.UserModel{DB: db, MaxUsers: cfg.maxUsers},
 		templateCache:  templateCache,
 		router:         chi.NewRouter(),
 		formDecoder:    form.NewDecoder(),
 		sessionManager: sessionManager,
-		debug:          *verbose,
+		debug:          cfg.debug,
 	}
 
 	protection := http.NewCrossOriginProtection()
@@ -89,31 +102,45 @@ func main() {
 	// Or bypass for public APIs or webhooks:
 	// protection.AddInsecureBypassPattern("/api/webhook/")
 
-	tlsConfig := &tls.Config{}
 	srv := &http.Server{
-		Addr:         *addr,
-		Handler:      protection.Handler(app.router),
-		ErrorLog:     errorLog,
-		TLSConfig:    tlsConfig,
+		Handler:      protection.Handler(app.routes()),
+		ErrorLog:     slog.NewLogLogger(logger.Handler(), slog.LevelError),
 		IdleTimeout:  time.Minute, // prevent slowloris-style attacks
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-	app.routes()
-	app.infoLog.Printf("Starting server on %s", *addr)
-	// TLS certificates (secret) - from Let's Encrypt
-	if *https {
-		err = srv.ListenAndServeTLS("./tls/cert.pem", "./tls/key.pem")
-	} else {
-		err = srv.ListenAndServe()
+	listener, err := net.Listen("tcp", cfg.addr)
+	if err != nil {
+		return err
 	}
-	app.errorLog.Fatal(err)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	logger.Info("starting server", "addr", cfg.addr)
+	return serve(ctx, srv, listener, logger)
 }
 
-// Local SQLite file. Foreign keys are off by default in SQLite, so turn them on
-// (needed for ON DELETE CASCADE); WAL and a busy timeout let reads and writes
-// from concurrent requests share the file.
-const defaultDSN = "file:bookmarkbox.db?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+// serve runs srv until ctx is cancelled, then lets requests in progress finish.
+func serve(ctx context.Context, srv *http.Server, listener net.Listener, logger *slog.Logger) error {
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- srv.Serve(listener) }()
+
+	select {
+	case err := <-serveErr:
+		return err
+	case <-ctx.Done():
+	}
+
+	logger.Info("shutting down")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		srv.Close()
+		return fmt.Errorf("shutdown: %w", err)
+	}
+	logger.Info("stopped")
+	return nil
+}
 
 // The openDB() function opens the SQLite database for a given DSN and applies
 // any pending schema migrations.

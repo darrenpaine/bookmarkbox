@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -34,8 +35,7 @@ func newTestApplication(t *testing.T) *application {
 	sessionManager.Lifetime = 12 * time.Hour
 	sessionManager.Cookie.Secure = true
 	return &application{
-		errorLog:       log.New(io.Discard, "", 0),
-		infoLog:        log.New(io.Discard, "", 0),
+		logger:         slog.New(slog.DiscardHandler),
 		router:         chi.NewRouter(),
 		bookmarks:      &mocks.BookmarkModel{}, // Use the mock.
 		tags:           &mocks.TagModel{},

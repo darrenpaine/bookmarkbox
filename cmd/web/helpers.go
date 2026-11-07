@@ -14,13 +14,13 @@ import (
 // Largest form post accepted.
 const maxFormBytes = 1 << 20 // 1 MB
 
-// The serverError helper writes a stack trace to the errorLog, and
+// The serverError helper logs the error with a stack trace, and
 // then sends a generic 500 response (or the trace itself in debug mode).
 func (app *application) serverError(w http.ResponseWriter, err error) {
-	trace := fmt.Sprintf("%s\n%s", err.Error(), debug.Stack())
-	app.errorLog.Output(2, trace)
+	stack := debug.Stack()
+	app.logger.Error(err.Error(), "stack", string(stack))
 	if app.debug {
-		http.Error(w, trace, http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("%s\n%s", err, stack), http.StatusInternalServerError)
 		return
 	}
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -74,7 +74,7 @@ func (app *application) newTemplateData(r *http.Request) *templateData {
 	if !data.IsAuthenticated {
 		open, err := app.users.SignupOpen()
 		if err != nil {
-			app.errorLog.Print(err)
+			app.logger.Error(err.Error())
 		}
 		data.SignupOpen = open
 	}
