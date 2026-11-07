@@ -18,9 +18,10 @@ Based on the 'SnippetBox' project from ["Let's Go" by Alex Edwards](https://lets
 - Configurable limits on users, bookmarks and tags, plus text length limits
 - Self-hosting with Docker Compose, with settings from environment variables
 - Structured logging with `slog`, a clean shutdown, and CI on GitHub Actions
+- New look: own CSS and fonts, dark mode, coloured tag ribbons, and a layout that works on phones
+- Star, mark for reading later, tag and delete bookmarks in place with htmx, with no page reload
 
 ### Next steps
-- New look: own CSS with dark mode, favicons, tag chips, and htmx for starring, tagging and deleting in place
 - List views (compact, cards, by tag, favourites, read later) with sorting and filters
 - Search across titles, URLs, notes and tags (SQLite FTS5)
 - Import and export the bookmark files from Chrome, Edge, Firefox and Brave

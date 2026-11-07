@@ -102,6 +102,9 @@ Form posts are limited to 1 MB in `decodePostForm`. File uploads in step 6 will 
 | `GET /bookmarks/{id}` | Owner | View a Bookmark |
 | `GET, POST /bookmarks/{id}/edit` | Owner | Update a Bookmark |
 | `POST /bookmarks/{id}/favourite` | Owner | Toggle Favourite |
+| `POST /bookmarks/{id}/read-later` | Owner | Toggle Read later |
+| `POST /bookmarks/{id}/tags` | Owner | Add one Tag |
+| `POST /bookmarks/{id}/tags/remove` | Owner | Remove one Tag |
 | `POST /bookmarks/{id}/delete` | Owner | Delete a Bookmark |
 | `GET /tags` | Logged in | List the User's Tags |
 | `POST /tags/{id}/rename` | Owner | Rename or merge a Tag |
@@ -109,14 +112,33 @@ Form posts are limited to 1 MB in `decodePostForm`. File uploads in step 6 will 
 | `GET, POST /account/password/update` | Logged in | Change password |
 | `GET /ping` | Public | Health check, without a session |
 
-### Frontend (Planned)
+### Look
 
-- Replace the book's CSS, starting from a small base (Pico.css or Open Props), with own colour tokens.
-- htmx for in-place actions, keeping server-rendered Go templates.
+- Own CSS in `ui/static/css/main.css`, with no framework. Colours are tokens on `:root`, redefined under `prefers-color-scheme: dark`, so dark mode follows the system setting with no toggle.
+- **Type:** Instrument Sans for text, and IBM Plex Sans Condensed for headings and the lowercase `bookmarkbox` wordmark. Both are served from `ui/static/fonts` as Latin WOFF2 files, with their OFL licences, so no page loads anything from another site.
+- **Accent:** one deep red, `#B3263A` (`#D9586C` in dark mode), for the Favourite star, main buttons, focus outlines and the current nav link.
+- **Tag and icon colours:** a Tag's colour class (`c0` to `c7`) comes from an FNV hash of its name, so nothing is stored on a Tag and the CSP needs no inline styles. Letter icons use the same hash on the domain, and stand in for favicons until step 10.
+- **App icon:** a lowercase b on a deep red square, drawn as SVG paths because favicons can't use web fonts, with 32px and 180px PNG fallbacks.
+- **List rows:** a title opens the website itself. Details opens the Bookmark's own page, with its notes and Tag editor.
+- **Layout:** a fixed bar holds the wordmark and the Add button. The main nav sits in the bar on wide screens and below it, scrolling away, on screens under 720px. Every control is at least 24px tall.
+
+### In-place actions
+
+htmx 2.0.11 is served from `ui/static/js`. htmx 2.0.x is used because 4.0 was released on 2026-11-01 as a rewrite and npm still tags it `next`. Revisit htmx 4 once it has matured and been widely tested.
+
+- Every action is an ordinary form post, so everything works without JavaScript. With htmx, the handler sees `HX-Request` and returns just the changed fragment, from the partials in `ui/html/partials/bookmark.tmpl`.
+- **Favourite and Read later** return the new toggle. Without JavaScript they redirect to a `next` path from the form, which must be a path on this site.
+- **Delete** asks first with `hx-confirm`. From a list, `HX-Target` names the row and the empty response removes it. From a Bookmark's page, `HX-Redirect` goes home. Without JavaScript there is no confirmation.
+- **Adding and removing a Tag** on a Bookmark's page returns the whole Tag editor. A problem, such as the Tag limit, is shown inside it with a 200, because htmx doesn't swap error responses. After adding, the field keeps focus.
+- The `htmx-config` meta tag turns off htmx's inline indicator styles and `eval`, so the CSP stays `default-src 'self'`.
+- Flash messages have two kinds, success and error.
 
 ### List views (Planned)
 
-One list handler with query parameters and a few templates, for example `/bookmarks?view=cards&tag=go&fav=1&sort=title`. The last List view is stored in the session.
+One list handler with query parameters and a few templates, for example `/bookmarks?view=cards&tag=go&fav=1&sort=title`. The last List view is stored in the session. The home list built in step 4 becomes the Compact List view.
+
+- **Long lists:** a "Show more" button at the end adds the next 50 rows in place with htmx, and is an ordinary link to the next batch without JavaScript. The address updates as rows are added, so Back and refresh keep the place. Until then, the home page shows the newest 50.
+- **Search in the fixed bar:** a search control joins the Add button. On a phone it is a button that opens the search box, so the bar stays one line.
 
 Search uses an FTS5 index over title, URL, notes and Tags. FTS5 was confirmed working on `modernc.org/sqlite` on 2026-11-04.
 

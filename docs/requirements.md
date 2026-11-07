@@ -33,8 +33,9 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 
 - Own visual identity, replacing the book's CSS: logo or wordmark, app favicon, own colours, dark mode and a dense layout.
 - Favicons beside links, coloured Tag chips and a star control.
-- In-place actions without a full page reload: set Favourite, add or remove a Tag, delete, live search.
+- In-place actions without a full page reload: set Favourite or Read later, add or remove a Tag, delete after a confirmation, live search. Every action still works without JavaScript.
 - A proper empty state, such as "No bookmarks yet. Import from your browser?"
+- Works on a phone: the Add button stays on screen while scrolling, and every control is large enough to tap.
 
 ### List views and search
 
@@ -120,8 +121,8 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 | 1 | **Foundations:** rename, SQLite, migrations, Bookmarks and Tags | Done |
 | 2 | **Model fixes and editing:** update Bookmarks, rename Tags, Duplicates by normalised URL, remove unused Tags, text limits, User, Bookmark and Tag limits | Done |
 | 3 | **Packaging:** environment config, `slog`, Dockerfile, compose, CI | Done |
-| 4 | **Restyle:** own CSS, dark mode, htmx actions | Next |
-| 5 | **List views and search** | Planned |
+| 4 | **Restyle:** own CSS, dark mode, htmx actions | Done |
+| 5 | **List views and search,** with "Show more" for long lists | Next |
 | 6 | **Import and export,** with round-trip tests | Planned |
 | 7 | **Public demo** on Render; needs step 6 for its seed data | Planned |
 | 8 | **JSON API and tokens** | Planned |
