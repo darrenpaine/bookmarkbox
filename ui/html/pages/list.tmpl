@@ -1,0 +1,73 @@
+{{define "title"}}Bookmarks{{end}}
+{{define "main"}}
+{{with .List}}
+{{if .Empty}}
+<h1>Your bookmarks</h1>
+<div class='empty'>
+    <p>No bookmarks yet.</p>
+    <a class='button primary' href='/bookmarks/new'>Add a bookmark</a>
+</div>
+{{else}}
+<div class='list-head'>
+    <h1>{{.State.Describe .Total}}</h1>
+    <div class='list-controls'>
+        <div class='switch' role='group' aria-label='List view'>
+            {{range .Views}}<a href='{{$.List.State.WithView .}}'{{if eq . $.List.State.View}} aria-current='true'{{end}}>{{$.List.ViewName .}}</a>{{end}}
+        </div>
+        <a class='chip-toggle' href='{{.State.ToggleFavourite}}'{{if .State.Favourite}} aria-current='true'{{end}}><span aria-hidden='true'>★</span> Favourites</a>
+        <a class='chip-toggle' href='{{.State.ToggleReadLater}}'{{if .State.ReadLater}} aria-current='true'{{end}}>Read later</a>
+        <details class='menu'>
+            <summary>Sort: {{.SortName .State.Sort}}</summary>
+            <ul>
+                {{range .Sorts}}<li><a href='{{$.List.State.WithSort .}}'{{if eq . $.List.State.Sort}} aria-current='true'{{end}}>{{$.List.SortName .}}</a></li>{{end}}
+            </ul>
+        </details>
+    </div>
+    {{if or .State.Tags .State.Domain (gt .State.FilterCount 1)}}
+    <ul class='filters' aria-label='Filters'>
+        {{range .State.Tags}}
+        <li class='tag {{colour .}}'>{{.}}<a class='filter-remove' href='{{$.List.State.WithoutTag .}}' aria-label='Remove filter {{.}}' title='Remove filter'>×</a></li>
+        {{end}}
+        {{with .State.Domain}}
+        <li class='filter-domain'>from {{.}}<a class='filter-remove' href='{{$.List.State.WithoutDomain}}' aria-label='Remove filter {{.}}' title='Remove filter'>×</a></li>
+        {{end}}
+        {{if gt .State.FilterCount 1}}<li><a href='{{.State.Cleared}}'>Clear filters</a></li>{{end}}
+    </ul>
+    {{end}}
+</div>
+
+{{if eq .Total 0}}
+<div class='empty'>
+    <p>{{.State.Describe 0}}.</p>
+    <a class='button' href='{{.State.Cleared}}'>Clear filters</a>
+</div>
+{{else if eq .State.View "tags"}}
+<div class='by-tag'>
+    <section class='tag-panel' aria-label='Tags'>
+        <ul>
+            {{range .Tags}}
+            {{if $.List.IsSelected .Name}}
+            <li class='selected'>
+                <a class='tag {{colour .Name}}' href='{{$.List.State.WithoutTag .Name}}' aria-current='true'
+                    title='Remove filter {{.Name}}'>{{.Name}} <span aria-hidden='true'>×</span></a>
+                <span class='count'>{{.BookmarkCount}}</span>
+            </li>
+            {{else}}
+            <li>
+                <a class='tag {{colour .Name}}' href='{{$.List.State.WithTag .Name}}'>{{.Name}}</a>
+                <span class='count'>{{.BookmarkCount}}</span>
+            </li>
+            {{end}}
+            {{end}}
+        </ul>
+    </section>
+    <ul class='list'>{{template "listmore" .}}</ul>
+</div>
+{{else if eq .State.View "cards"}}
+<ul class='cards'>{{template "listmore" .}}</ul>
+{{else}}
+<ul class='list'>{{template "listmore" .}}</ul>
+{{end}}
+{{end}}
+{{end}}
+{{end}}

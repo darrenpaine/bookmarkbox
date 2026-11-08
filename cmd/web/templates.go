@@ -19,7 +19,6 @@ type templateData struct {
 	CurrentYear     int
 	CurrentPath     string // marks the current nav link
 	Bookmark        *models.Bookmark
-	Bookmarks       []*models.Bookmark
 	Tag             *models.Tag
 	Tags            []*models.Tag
 	MergeInto       string // name of the tag a rename would merge into
@@ -28,8 +27,9 @@ type templateData struct {
 	FlashIsError    bool   // styles the flash as an error
 	TagError        string // a failed add or remove on the view page's tag editor
 	FocusTagInput   bool   // after adding a tag in place, keep typing in the field
-	IsAuthenticated bool   // Has an authenticated ID
-	SignupOpen      bool   // Set for logged-out visitors, to show the Signup link
+	List            *listPage
+	IsAuthenticated bool // Has an authenticated ID
+	SignupOpen      bool // Set for logged-out visitors, to show the Signup link
 	User            *models.User
 }
 
@@ -47,11 +47,10 @@ func humanDate(t time.Time) string {
 var functions = template.FuncMap{
 	"humanDate":   humanDate,
 	"shortDate":   func(t time.Time) string { return shortDate(t, time.Now()) },
-	"domain":      domain,
 	"colour":      colour,
 	"initial":     initial,
-	"listItem":    func(b *models.Bookmark) bookmarkItem { return bookmarkItem{b, "/"} },
-	"detailsItem": func(b *models.Bookmark) bookmarkItem { return bookmarkItem{b, fmt.Sprintf("/bookmarks/%d", b.ID)} },
+	"listItem":    func(b *models.Bookmark, p *listPage) bookmarkItem { return bookmarkItem{b, p.Here, &p.State} },
+	"detailsItem": func(b *models.Bookmark) bookmarkItem { return bookmarkItem{b, fmt.Sprintf("/bookmarks/%d", b.ID), nil} },
 	"static":      func(path string) string { return "/static/" + path + "?v=" + staticVersion },
 }
 
@@ -81,10 +80,29 @@ func hashStatic() string {
 }
 
 // bookmarkItem is a Bookmark as shown in a list row or on its own page. Next is
-// where its action forms return to when JavaScript is off.
+// where its action forms return to when JavaScript is off. List is the list
+// it's shown in, which its Tag and domain links narrow; nil on its own page.
 type bookmarkItem struct {
 	*models.Bookmark
 	Next string
+	List *listState
+}
+
+// TagURL is the list of Bookmarks with a Tag: this list narrowed by it, or,
+// away from a list, the remembered List view filtered by it alone.
+func (b bookmarkItem) TagURL(tag string) string {
+	if b.List == nil {
+		return "/bookmarks?tag=" + url.QueryEscape(tag)
+	}
+	return b.List.WithTag(tag)
+}
+
+// DomainURL is the list of Bookmarks from this one's domain.
+func (b bookmarkItem) DomainURL() string {
+	if b.List == nil {
+		return "/bookmarks?domain=" + url.QueryEscape(b.Domain)
+	}
+	return b.List.WithDomain(b.Domain)
 }
 
 // shortDate gives "6 Nov", adding the year when it isn't the current one.
@@ -113,15 +131,6 @@ func initial(name string) string {
 		return strings.ToUpper(string(r))
 	}
 	return "?"
-}
-
-// domain() returns the host part of a URL without "www.", e.g. "go.dev".
-func domain(rawURL string) string {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimPrefix(u.Hostname(), "www.")
 }
 
 func newTemplateCache() (map[string]*template.Template, error) {

@@ -2,10 +2,9 @@
 {{define "main"}}
 {{with .Bookmark}}
 {{$item := detailsItem .}}
-{{$domain := domain .URL}}
 <article class='bookmark'>
     <div class='bookmark-head'>
-        <span class='ico ico-large {{colour $domain}}' aria-hidden='true'>{{initial $domain}}</span>
+        <span class='ico ico-large {{colour .Domain}}' aria-hidden='true'>{{initial .Domain}}</span>
         <h1>{{.Title}}</h1>
         {{template "star" $item}}
     </div>

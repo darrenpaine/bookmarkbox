@@ -78,8 +78,9 @@ func (app *application) renderFragment(w http.ResponseWriter, status int, name s
 }
 
 // isHTMX reports whether htmx made the request, so it wants a fragment back.
+// When htmx restores a page for Back, it wants the whole page.
 func isHTMX(r *http.Request) bool {
-	return r.Header.Get("HX-Request") == "true"
+	return r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-History-Restore-Request") != "true"
 }
 
 // flash shows a success message on the next page.

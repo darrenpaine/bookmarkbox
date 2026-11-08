@@ -5,8 +5,9 @@
         <meta charset='utf-8'>
         <meta name='viewport' content='width=device-width, initial-scale=1'>
         <meta name='color-scheme' content='light dark'>
-        <!-- htmx must not add inline styles or run inline code: the CSP forbids both -->
-        <meta name='htmx-config' content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false}'>
+        <!-- htmx must not add inline styles or run inline code: the CSP forbids both.
+             It keeps no copies of pages for Back, so Bookmarks never sit in the browser's storage. -->
+        <meta name='htmx-config' content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0,"refreshOnHistoryMiss":true}'>
         <title>{{template "title" .}} - BookmarkBox</title>
         <!-- Fetch the fonts every page uses straight away, so text isn't drawn first in a fallback font -->
         <link rel='preload' href='/static/fonts/instrument-sans-latin-400-normal.woff2' as='font' type='font/woff2' crossorigin>

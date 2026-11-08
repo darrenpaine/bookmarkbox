@@ -532,6 +532,22 @@ form.inline {
 .domain {
     color: var(--muted);
     font-size: 0.85rem;
+    text-decoration: none;
+}
+
+a.domain:hover {
+    color: var(--ink);
+    text-decoration: underline;
+}
+
+/* Tag names link to the list of Bookmarks with that Tag */
+.tag a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.tag a:hover {
+    text-decoration: underline;
 }
 
 .meta {
@@ -896,4 +912,336 @@ textarea {
 
 .details dd {
     overflow-wrap: anywhere;
+}
+
+/* List page: heading, List view switch, Filters and sort */
+
+.list-head {
+    margin-bottom: 14px;
+}
+
+.list-head h1 {
+    margin-bottom: 10px;
+}
+
+.list-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+}
+
+.switch {
+    display: inline-flex;
+    padding: 2px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+}
+
+.switch a,
+.chip-toggle,
+.menu summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 30px;
+    padding: 2px 10px;
+    border-radius: 5px;
+    color: var(--muted);
+    font-size: 0.9rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.switch a:hover,
+.chip-toggle:hover,
+.menu summary:hover {
+    color: var(--ink);
+}
+
+.switch a[aria-current="true"] {
+    background: var(--ink);
+    color: var(--bg);
+    font-weight: 600;
+}
+
+.chip-toggle {
+    min-height: 34px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 17px;
+}
+
+.chip-toggle[aria-current="true"] {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.chip-toggle[aria-current="true"] span {
+    color: var(--accent);
+}
+
+.menu {
+    position: relative;
+    margin-left: auto;
+}
+
+.menu summary {
+    min-height: 34px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    cursor: pointer;
+    list-style: none;
+}
+
+.menu summary::-webkit-details-marker {
+    display: none;
+}
+
+.menu summary::after {
+    content: "▾";
+    font-size: 0.75rem;
+}
+
+.menu ul {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 5;
+    min-width: 140px;
+    padding: 4px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+}
+
+.menu li a {
+    display: flex;
+    min-height: 32px;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 5px;
+    text-decoration: none;
+}
+
+.menu li a:hover {
+    background: var(--bg);
+}
+
+.menu li a[aria-current="true"] {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    margin-top: 10px;
+    font-size: 0.9rem;
+}
+
+.filter-domain {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 1px 4px 1px 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+}
+
+.filter-remove {
+    display: inline-grid;
+    place-items: center;
+    min-width: 24px;
+    min-height: 24px;
+    margin: -2px -6px -2px 0;
+    color: inherit;
+    font-size: 1rem;
+    text-decoration: none;
+}
+
+.filters .tag {
+    font-size: 0.85rem;
+}
+
+/* Show more: the last item of a list */
+
+.more {
+    display: flex;
+    justify-content: center;
+    padding: 12px 0;
+}
+
+.cards .more {
+    grid-column: 1 / -1;
+}
+
+/* Cards */
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+}
+
+.card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px 10px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.card-head {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) 32px;
+    align-items: start;
+    gap: 10px;
+}
+
+.card .head {
+    flex-direction: column;
+    align-items: stretch;
+    row-gap: 2px;
+}
+
+.card .star {
+    margin-top: -4px;
+}
+
+.card-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 0.9rem;
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+}
+
+.card .meta {
+    margin-top: auto;
+    padding-top: 6px;
+    border-top: 1px solid var(--line);
+}
+
+/* By Tag: a Tag panel beside the list */
+
+.by-tag {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    align-items: start;
+    gap: 16px;
+}
+
+.tag-panel {
+    position: sticky;
+    top: 72px;
+    max-height: calc(100vh - 88px);
+    overflow-y: auto;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.tag-panel ul {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.tag-panel li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 28px;
+}
+
+.tag-panel .tag {
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tag-panel a.tag:hover {
+    text-decoration: underline;
+}
+
+/* A line after the selected Tags, before the rest */
+.tag-panel .selected:has(+ li:not(.selected)) {
+    padding-bottom: 6px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--line);
+}
+
+.tag-panel .selected .tag {
+    gap: 6px;
+}
+
+.tag-panel .count {
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 719px) {
+    .menu {
+        margin-left: 0;
+    }
+
+    .menu ul {
+        right: auto;
+        left: 0;
+    }
+
+    .cards {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .by-tag {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
+    }
+
+    /* The Tag panel becomes one row of chips that scrolls sideways */
+    .tag-panel {
+        position: static;
+        max-height: none;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 8px 10px;
+        scrollbar-width: thin;
+        scrollbar-color: var(--line) transparent;
+    }
+
+    .tag-panel ul {
+        flex-direction: row;
+        gap: 10px;
+        width: max-content;
+    }
+
+    .tag-panel li {
+        justify-content: flex-start;
+        gap: 4px;
+    }
+
+    .tag-panel .selected:has(+ li:not(.selected)) {
+        padding: 0 10px 0 0;
+        margin: 0;
+        border-bottom: 0;
+        border-right: 1px solid var(--line);
+    }
 }

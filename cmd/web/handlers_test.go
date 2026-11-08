@@ -124,13 +124,7 @@ func TestHome(t *testing.T) {
 	assert.Equal(t, code, http.StatusOK)
 	assert.StringContains(t, body, "Welcome to BookmarkBox")
 
-	ts.login(t)
-	code, _, body = ts.get(t, "/")
-	assert.Equal(t, code, http.StatusOK)
-	// The title opens the website, and Details opens the Bookmark's own page.
-	assert.StringContains(t, body, "<a class='title' href='https://go.dev/doc/effective_go' rel='noopener noreferrer'>Effective Go</a>")
-	assert.StringContains(t, body, "<a href='/bookmarks/1'>Details</a>")
-	assert.StringContains(t, body, "go.dev")
+	// Logged in, home is the list: see TestBookmarkList.
 }
 
 // Test User Signup Form
@@ -432,6 +426,8 @@ func TestTags(t *testing.T) {
 		code, _, body := ts.get(t, "/tags")
 		assert.Equal(t, code, http.StatusOK)
 		assert.StringContains(t, body, "<form action='/tags/2/rename' method='POST'>")
+		// Each Tag links to its Bookmarks.
+		assert.StringContains(t, body, "<td class='count'><a href='/bookmarks?tag=go'>")
 	})
 
 	tests := []struct {

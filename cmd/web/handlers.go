@@ -65,18 +65,14 @@ type userChangePasswordForm struct {
 	ConfirmPassword     string `form:"confirm_password"`
 }
 
-// Render the Home page: the user's latest bookmarks, or an intro if logged out.
+// The home page: a welcome when logged out, otherwise the list.
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
-	data := app.newTemplateData(r)
-	if data.IsAuthenticated {
-		bookmarks, err := app.bookmarks.Latest(app.authenticatedUserID(r), 50)
-		if err != nil {
-			app.serverError(w, err)
-			return
-		}
-		data.Bookmarks = bookmarks
+	if app.isAuthenticated(r) {
+		// The list, in the List view and sort remembered for the session.
+		http.Redirect(w, r, "/bookmarks", http.StatusSeeOther)
+		return
 	}
-	app.render(w, http.StatusOK, "home.tmpl", data)
+	app.render(w, http.StatusOK, "home.tmpl", app.newTemplateData(r))
 }
 
 // Render the About page
@@ -315,7 +311,7 @@ func (app *application) toggle(w http.ResponseWriter, r *http.Request, change fu
 		app.modelError(w, err)
 		return
 	}
-	app.renderFragment(w, http.StatusOK, fragment, bookmarkItem{bookmark, next})
+	app.renderFragment(w, http.StatusOK, fragment, bookmarkItem{bookmark, next, nil})
 }
 
 // modelError sends a 404 for ErrNoRecord, and a 500 for anything else.

@@ -13,8 +13,8 @@
     <tbody>
         {{range .Tags}}
         <tr>
-            <td><span class='tag {{colour .Name}}'>{{.Name}}</span></td>
-            <td class='count'>{{.BookmarkCount}}</td>
+            <td><span class='tag {{colour .Name}}'><a href='/bookmarks?tag={{.Name}}' title='Bookmarks tagged {{.Name}}'>{{.Name}}</a></span></td>
+            <td class='count'><a href='/bookmarks?tag={{.Name}}'>{{.BookmarkCount}}</a></td>
             <td>
                 <form action='/tags/{{.ID}}/rename' method='POST'>
                     <div class='rename'>
