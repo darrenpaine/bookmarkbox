@@ -29,7 +29,7 @@ func TestSecureHeaders(t *testing.T) {
 
 	// Has it set the items in the response header?
 	headers := map[string]string{
-		"Content-Security-Policy": "default-src 'self'; style-src 'self' fonts.googleapis.com; font-src fonts.gstatic.com",
+		"Content-Security-Policy": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
 		"Referrer-Policy":         "origin-when-cross-origin",
 		"X-Content-Type-Options":  "nosniff",
 		"X-Frame-Options":         "deny",

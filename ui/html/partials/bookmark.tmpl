@@ -1,0 +1,76 @@
+<!-- Pieces of a Bookmark, shared by the list and the Bookmark's own page.
+     star, readlater and tageditor are also sent alone, for htmx to swap in. -->
+
+{{define "star"}}
+<form class='inline' action='/bookmarks/{{.ID}}/favourite' method='POST'
+    hx-post='/bookmarks/{{.ID}}/favourite' hx-swap='outerHTML'>
+    <input type='hidden' name='next' value='{{.Next}}'>
+    <button class='star' aria-pressed='{{.Favourite}}' aria-label='Favourite'
+        title='{{if .Favourite}}Remove from favourites{{else}}Add to favourites{{end}}'>{{if .Favourite}}★{{else}}☆{{end}}</button>
+</form>
+{{end}}
+
+{{define "readlater"}}
+<form class='inline' action='/bookmarks/{{.ID}}/read-later' method='POST'
+    hx-post='/bookmarks/{{.ID}}/read-later' hx-swap='outerHTML'>
+    <input type='hidden' name='next' value='{{.Next}}'>
+    <button class='toggle' aria-pressed='{{.ReadLater}}'>Read later</button>
+</form>
+{{end}}
+
+{{define "bookmarkrow"}}
+{{$domain := domain .URL}}
+<li class='row' id='bookmark-{{.ID}}'>
+    <span class='ico {{colour $domain}}' aria-hidden='true'>{{initial $domain}}</span>
+    <div class='head'>
+        <a class='title' href='{{.URL}}' rel='noopener noreferrer'>{{.Title}}</a>
+        <span class='domain'>{{$domain}}</span>
+    </div>
+    {{if .Tags}}
+    <ul class='tags' aria-label='Tags'>
+        {{range .Tags}}<li class='tag {{colour .}}'>{{.}}</li>{{end}}
+    </ul>
+    {{end}}
+    <div class='row-star'>{{template "star" .}}</div>
+    <div class='meta'>
+        {{template "readlater" .}}
+        <time datetime='{{.Created.UTC.Format "2006-01-02"}}'>{{shortDate .Created}}</time>
+        <a href='/bookmarks/{{.ID}}'>Details</a>
+        <a href='/bookmarks/{{.ID}}/edit'>Edit</a>
+        <form class='inline' action='/bookmarks/{{.ID}}/delete' method='POST'
+            hx-post='/bookmarks/{{.ID}}/delete' hx-target='#bookmark-{{.ID}}' hx-swap='outerHTML'
+            hx-confirm='Delete “{{.Title}}”?'>
+            <input type='hidden' name='next' value='{{.Next}}'>
+            <button class='link'>Delete</button>
+        </form>
+    </div>
+</li>
+{{end}}
+
+{{define "tageditor"}}
+<div class='tag-editor' id='tag-editor'>
+    {{with .Bookmark}}
+    {{if .Tags}}
+    <ul class='tags' aria-label='Tags'>
+        {{range .Tags}}
+        <li class='tag {{colour .}}'>{{.}}
+            <form class='inline' action='/bookmarks/{{$.Bookmark.ID}}/tags/remove' method='POST'
+                hx-post='/bookmarks/{{$.Bookmark.ID}}/tags/remove' hx-target='#tag-editor' hx-swap='outerHTML'>
+                <input type='hidden' name='name' value='{{.}}'>
+                <button class='tag-remove' aria-label='Remove tag {{.}}' title='Remove tag'>×</button>
+            </form>
+        </li>
+        {{end}}
+    </ul>
+    {{end}}
+    <form class='tag-add' action='/bookmarks/{{.ID}}/tags' method='POST'
+        hx-post='/bookmarks/{{.ID}}/tags' hx-target='#tag-editor' hx-swap='outerHTML'>
+        <label class='visually-hidden' for='new-tag'>Add a tag</label>
+        <input id='new-tag' type='text' name='name' placeholder='Add a tag' autocomplete='off'
+            maxlength='50'{{if $.FocusTagInput}} autofocus{{end}}>
+        <button class='button'>Add</button>
+    </form>
+    {{end}}
+    {{with .TagError}}<p class='field-error' role='alert'>{{.}}</p>{{end}}
+</div>
+{{end}}

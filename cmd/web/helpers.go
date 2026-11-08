@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/go-playground/form/v4"
@@ -63,12 +65,57 @@ func (app *application) render(w http.ResponseWriter, status int, page string, d
 	}
 }
 
+// renderFragment renders one named template on its own, for htmx to swap
+// into the page. Every page's template set has the partials, so any one will do.
+func (app *application) renderFragment(w http.ResponseWriter, status int, name string, data any) {
+	buf := new(bytes.Buffer)
+	if err := app.templateCache["home.tmpl"].ExecuteTemplate(buf, name, data); err != nil {
+		app.serverError(w, err)
+		return
+	}
+	w.WriteHeader(status)
+	buf.WriteTo(w)
+}
+
+// isHTMX reports whether htmx made the request, so it wants a fragment back.
+func isHTMX(r *http.Request) bool {
+	return r.Header.Get("HX-Request") == "true"
+}
+
+// flash shows a success message on the next page.
+func (app *application) flash(r *http.Request, message string) {
+	app.sessionManager.Put(r.Context(), "flash", message)
+}
+
+// flashError shows an error message on the next page.
+func (app *application) flashError(r *http.Request, message string) {
+	app.sessionManager.Put(r.Context(), "flashError", message)
+}
+
+// safeNext returns next if it is a path on this site, otherwise fallback, so a
+// form can't redirect somewhere else.
+func safeNext(next, fallback string) string {
+	if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") || strings.HasPrefix(next, "/\\") {
+		return fallback
+	}
+	u, err := url.Parse(next)
+	if err != nil || u.Scheme != "" || u.Host != "" {
+		return fallback
+	}
+	return next
+}
+
 // Helper to initialise template data.
 func (app *application) newTemplateData(r *http.Request) *templateData {
 	data := &templateData{
 		CurrentYear:     time.Now().Year(),
+		CurrentPath:     r.URL.Path,
 		Flash:           app.sessionManager.PopString(r.Context(), "flash"),
 		IsAuthenticated: app.isAuthenticated(r),
+	}
+	if message := app.sessionManager.PopString(r.Context(), "flashError"); message != "" {
+		data.Flash = message
+		data.FlashIsError = true
 	}
 	// Only logged-out pages show the Signup link. A failed check just hides it.
 	if !data.IsAuthenticated {

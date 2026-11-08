@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"hash/fnv"
 	"html/template"
 	"io/fs"
 	"net/url"
@@ -12,12 +14,10 @@ import (
 	"github.com/darrenpaine/bookmarkbox/ui"
 )
 
-// Define a templateData type to act as the holding structure for
-// any dynamic data that we want to pass to our HTML templates.
-// At the moment it only contains one field, but we'll add more
-// to it as the build progresses.
+// templateData holds the dynamic data passed to the HTML templates.
 type templateData struct {
 	CurrentYear     int
+	CurrentPath     string // marks the current nav link
 	Bookmark        *models.Bookmark
 	Bookmarks       []*models.Bookmark
 	Tag             *models.Tag
@@ -25,8 +25,11 @@ type templateData struct {
 	MergeInto       string // name of the tag a rename would merge into
 	Form            any
 	Flash           string
-	IsAuthenticated bool // Has an authenticated ID
-	SignupOpen      bool // Set for logged-out visitors, to show the Signup link
+	FlashIsError    bool   // styles the flash as an error
+	TagError        string // a failed add or remove on the view page's tag editor
+	FocusTagInput   bool   // after adding a tag in place, keep typing in the field
+	IsAuthenticated bool   // Has an authenticated ID
+	SignupOpen      bool   // Set for logged-out visitors, to show the Signup link
 	User            *models.User
 }
 
@@ -42,8 +45,48 @@ func humanDate(t time.Time) string {
 // essentially a string-keyed map which acts as a lookup between the names of our
 // custom template functions and the functions themselves.
 var functions = template.FuncMap{
-	"humanDate": humanDate,
-	"domain":    domain,
+	"humanDate":   humanDate,
+	"shortDate":   func(t time.Time) string { return shortDate(t, time.Now()) },
+	"domain":      domain,
+	"colour":      colour,
+	"initial":     initial,
+	"listItem":    func(b *models.Bookmark) bookmarkItem { return bookmarkItem{b, "/"} },
+	"detailsItem": func(b *models.Bookmark) bookmarkItem { return bookmarkItem{b, fmt.Sprintf("/bookmarks/%d", b.ID)} },
+}
+
+// bookmarkItem is a Bookmark as shown in a list row or on its own page. Next is
+// where its action forms return to when JavaScript is off.
+type bookmarkItem struct {
+	*models.Bookmark
+	Next string
+}
+
+// shortDate gives "6 Nov", adding the year when it isn't the current one.
+func shortDate(t, now time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	t = t.UTC()
+	if t.Year() == now.UTC().Year() {
+		return t.Format("2 Jan")
+	}
+	return t.Format("2 Jan 2006")
+}
+
+// colour picks one of 8 colour classes from a name, so a Tag or domain always
+// gets the same colour without storing one.
+func colour(name string) string {
+	h := fnv.New32a()
+	h.Write([]byte(name))
+	return fmt.Sprintf("c%d", h.Sum32()%8)
+}
+
+// initial is the upper-case first letter of a name, for the letter icons.
+func initial(name string) string {
+	for _, r := range name {
+		return strings.ToUpper(string(r))
+	}
+	return "?"
 }
 
 // domain() returns the host part of a URL without "www.", e.g. "go.dev".

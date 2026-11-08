@@ -332,3 +332,68 @@ func TestUnusedTagsAreRemoved(t *testing.T) {
 		t.Errorf("tags after last delete: got %q", got)
 	}
 }
+
+func TestBookmarkModelToggleReadLater(t *testing.T) {
+	db := newTestDB(t)
+	m := BookmarkModel{DB: db}
+
+	assert.NilError(t, m.ToggleReadLater(1, 1))
+	b, _ := m.Get(1, 1)
+	assert.Equal(t, b.ReadLater, true)
+	assert.NilError(t, m.ToggleReadLater(1, 1))
+	b, _ = m.Get(1, 1)
+	assert.Equal(t, b.ReadLater, false)
+
+	assert.Equal(t, errors.Is(m.ToggleReadLater(2, 1), ErrNoRecord), true)
+}
+
+func TestBookmarkModelAddAndRemoveTag(t *testing.T) {
+	db := newTestDB(t)
+	m := BookmarkModel{DB: db, MaxTags: 2}
+
+	t.Run("Add a new tag, normalised", func(t *testing.T) {
+		assert.NilError(t, m.AddTag(1, 1, "  Reading "))
+		b, _ := m.Get(1, 1)
+		if !slices.Equal(b.Tags, []string{"go", "reading"}) {
+			t.Errorf("tags: got %q", b.Tags)
+		}
+	})
+
+	t.Run("Adding a tag it already has changes nothing", func(t *testing.T) {
+		assert.NilError(t, m.AddTag(1, 1, "go"))
+		b, _ := m.Get(1, 1)
+		assert.Equal(t, len(b.Tags), 2)
+	})
+
+	t.Run("A new tag past the limit is refused", func(t *testing.T) {
+		assert.Equal(t, errors.Is(m.AddTag(1, 1, "third"), ErrTagLimit), true)
+		if got := tagNames(t, db, 1); !slices.Equal(got, []string{"go", "reading"}) {
+			t.Errorf("tags: got %q", got)
+		}
+	})
+
+	t.Run("Removing the last use removes the tag", func(t *testing.T) {
+		assert.NilError(t, m.RemoveTag(1, 1, "reading"))
+		if got := tagNames(t, db, 1); !slices.Equal(got, []string{"go"}) {
+			t.Errorf("tags: got %q", got)
+		}
+	})
+
+	t.Run("Removing a tag it doesn't have changes nothing", func(t *testing.T) {
+		assert.NilError(t, m.RemoveTag(1, 1, "missing"))
+		b, _ := m.Get(1, 1)
+		if !slices.Equal(b.Tags, []string{"go"}) {
+			t.Errorf("tags: got %q", b.Tags)
+		}
+	})
+
+	t.Run("Another user's bookmark", func(t *testing.T) {
+		assert.Equal(t, errors.Is(m.AddTag(2, 1, "mine"), ErrNoRecord), true)
+		assert.Equal(t, errors.Is(m.RemoveTag(2, 1, "go"), ErrNoRecord), true)
+		if got := tagNames(t, db, 2); len(got) != 0 {
+			t.Errorf("Bob's tags: got %q", got)
+		}
+		b, _ := m.Get(1, 1)
+		assert.Equal(t, len(b.Tags), 1)
+	})
+}

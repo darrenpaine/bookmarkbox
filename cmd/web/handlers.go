@@ -25,6 +25,17 @@ type bookmarkForm struct {
 	ReadLater           bool   `form:"read_later"`
 }
 
+// Favourite, Read later and delete forms. Next is where to go back to when
+// JavaScript is off.
+type actionForm struct {
+	Next string `form:"next"`
+}
+
+// Form to add or remove one tag on a bookmark's page.
+type bookmarkTagForm struct {
+	Name string `form:"name"`
+}
+
 // Tag rename form. Confirm is set by the merge confirmation page.
 type tagRenameForm struct {
 	Name    string `form:"name"`
@@ -191,7 +202,7 @@ func (app *application) bookmarkCreatePost(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	app.sessionManager.Put(r.Context(), "flash", "Bookmark saved!")
+	app.flash(r, "Bookmark saved!")
 	http.Redirect(w, r, fmt.Sprintf("/bookmarks/%d", id), http.StatusSeeOther)
 }
 
@@ -261,47 +272,165 @@ func (app *application) bookmarkEditPost(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	app.sessionManager.Put(r.Context(), "flash", "Bookmark updated!")
+	app.flash(r, "Bookmark updated!")
 	http.Redirect(w, r, fmt.Sprintf("/bookmarks/%d", id), http.StatusSeeOther)
 }
 
-// Toggle the favourite star, then go back to the bookmark.
+// Toggle the favourite star. htmx gets the new star back; otherwise go back
+// to the page the form was on.
 func (app *application) bookmarkFavouritePost(w http.ResponseWriter, r *http.Request) {
+	app.toggle(w, r, app.bookmarks.ToggleFavourite, "star")
+}
+
+// Toggle Read later, in the same way as the favourite star.
+func (app *application) bookmarkReadLaterPost(w http.ResponseWriter, r *http.Request) {
+	app.toggle(w, r, app.bookmarks.ToggleReadLater, "readlater")
+}
+
+// toggle runs one of the bookmark toggles, then returns the named fragment to
+// htmx, or redirects.
+func (app *application) toggle(w http.ResponseWriter, r *http.Request, change func(userID, id int) error, fragment string) {
 	id, ok := urlID(r)
 	if !ok {
 		app.notFound(w)
 		return
 	}
-	err := app.bookmarks.ToggleFavourite(app.authenticatedUserID(r), id)
-	if err != nil {
-		if errors.Is(err, models.ErrNoRecord) {
-			app.notFound(w)
-		} else {
-			app.serverError(w, err)
-		}
+	var form actionForm
+	if err := app.decodePostForm(w, r, &form); err != nil {
+		app.clientError(w, http.StatusBadRequest)
 		return
 	}
-	http.Redirect(w, r, fmt.Sprintf("/bookmarks/%d", id), http.StatusSeeOther)
+	next := safeNext(form.Next, fmt.Sprintf("/bookmarks/%d", id))
+	userID := app.authenticatedUserID(r)
+	if err := change(userID, id); err != nil {
+		app.modelError(w, err)
+		return
+	}
+	if !isHTMX(r) {
+		http.Redirect(w, r, next, http.StatusSeeOther)
+		return
+	}
+	bookmark, err := app.bookmarks.Get(userID, id)
+	if err != nil {
+		app.modelError(w, err)
+		return
+	}
+	app.renderFragment(w, http.StatusOK, fragment, bookmarkItem{bookmark, next})
 }
 
-// Delete a bookmark, then go to the home page.
+// modelError sends a 404 for ErrNoRecord, and a 500 for anything else.
+func (app *application) modelError(w http.ResponseWriter, err error) {
+	if errors.Is(err, models.ErrNoRecord) {
+		app.notFound(w)
+	} else {
+		app.serverError(w, err)
+	}
+}
+
+// Delete a bookmark. When htmx deletes a row of a list, the empty response
+// removes the row. Otherwise go to the home page with a message.
 func (app *application) bookmarkDeletePost(w http.ResponseWriter, r *http.Request) {
 	id, ok := urlID(r)
 	if !ok {
 		app.notFound(w)
 		return
 	}
-	err := app.bookmarks.Delete(app.authenticatedUserID(r), id)
-	if err != nil {
-		if errors.Is(err, models.ErrNoRecord) {
-			app.notFound(w)
-		} else {
-			app.serverError(w, err)
-		}
+	var form actionForm
+	if err := app.decodePostForm(w, r, &form); err != nil {
+		app.clientError(w, http.StatusBadRequest)
 		return
 	}
-	app.sessionManager.Put(r.Context(), "flash", "Bookmark deleted.")
-	http.Redirect(w, r, "/", http.StatusSeeOther)
+	if err := app.bookmarks.Delete(app.authenticatedUserID(r), id); err != nil {
+		app.modelError(w, err)
+		return
+	}
+	if isHTMX(r) && r.Header.Get("HX-Target") == fmt.Sprintf("bookmark-%d", id) {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	app.flash(r, "Bookmark deleted.")
+	next := safeNext(form.Next, "/")
+	if isHTMX(r) {
+		w.Header().Set("HX-Redirect", next)
+		return
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther)
+}
+
+// tagName normalises a tag name typed by the user, or explains what's wrong.
+// Commas split tags on the bookmark form, so they can't be in a name.
+func tagName(raw string) (name, problem string) {
+	names := models.NormaliseTags([]string{raw})
+	switch {
+	case len(names) == 0:
+		return "", "A tag name cannot be blank"
+	case strings.Contains(raw, ","):
+		return "", "A tag name cannot contain a comma"
+	case !validator.MaxChars(names[0], models.MaxTagNameChars):
+		return "", fmt.Sprintf("A tag name must be %d characters or fewer", models.MaxTagNameChars)
+	}
+	return names[0], ""
+}
+
+// Add a tag to a bookmark from its page.
+func (app *application) bookmarkTagAddPost(w http.ResponseWriter, r *http.Request) {
+	app.changeTag(w, r, true)
+}
+
+// Remove a tag from a bookmark from its page.
+func (app *application) bookmarkTagRemovePost(w http.ResponseWriter, r *http.Request) {
+	app.changeTag(w, r, false)
+}
+
+// changeTag adds or removes one tag. htmx gets the bookmark's tag editor back,
+// with any problem shown in it; otherwise the bookmark's page shows it.
+func (app *application) changeTag(w http.ResponseWriter, r *http.Request, add bool) {
+	id, ok := urlID(r)
+	if !ok {
+		app.notFound(w)
+		return
+	}
+	var form bookmarkTagForm
+	if err := app.decodePostForm(w, r, &form); err != nil {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+	userID := app.authenticatedUserID(r)
+	name, problem := tagName(form.Name)
+	if problem == "" {
+		var err error
+		if add {
+			err = app.bookmarks.AddTag(userID, id, name)
+		} else {
+			err = app.bookmarks.RemoveTag(userID, id, name)
+		}
+		switch {
+		case errors.Is(err, models.ErrTagLimit):
+			problem = "You have reached your limit of tags, so this can't add a new one"
+		case err != nil:
+			app.modelError(w, err)
+			return
+		}
+	}
+
+	if !isHTMX(r) {
+		if problem != "" {
+			app.flashError(r, problem)
+		}
+		http.Redirect(w, r, fmt.Sprintf("/bookmarks/%d", id), http.StatusSeeOther)
+		return
+	}
+	bookmark, err := app.bookmarks.Get(userID, id)
+	if err != nil {
+		app.modelError(w, err)
+		return
+	}
+	// htmx only swaps successful responses, so a problem is still a 200.
+	app.renderFragment(w, http.StatusOK, "tageditor", &templateData{
+		Bookmark:      bookmark,
+		TagError:      problem,
+		FocusTagInput: add,
+	})
 }
 
 // Render the user's tags, with a rename box for each.
@@ -346,24 +475,14 @@ func (app *application) tagRenamePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Commas split Tags on the bookmark form, so they can't be in a name.
-	names := models.NormaliseTags([]string{form.Name})
-	problem := ""
-	switch {
-	case len(names) == 0:
-		problem = "A tag name cannot be blank"
-	case strings.Contains(form.Name, ","):
-		problem = "A tag name cannot contain a comma"
-	case !validator.MaxChars(names[0], models.MaxTagNameChars):
-		problem = fmt.Sprintf("A tag name must be %d characters or fewer", models.MaxTagNameChars)
-	}
+	name, problem := tagName(form.Name)
 	if problem != "" {
 		data := app.newTemplateData(r)
 		data.Flash = problem
+		data.FlashIsError = true
 		app.renderTagList(w, r, http.StatusUnprocessableEntity, data)
 		return
 	}
-	name := names[0]
 	if name == tag.Name {
 		http.Redirect(w, r, "/tags", http.StatusSeeOther)
 		return
@@ -390,9 +509,9 @@ func (app *application) tagRenamePost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if form.Confirm {
-		app.sessionManager.Put(r.Context(), "flash", "Tags merged.")
+		app.flash(r, "Tags merged.")
 	} else {
-		app.sessionManager.Put(r.Context(), "flash", "Tag renamed.")
+		app.flash(r, "Tag renamed.")
 	}
 	http.Redirect(w, r, "/tags", http.StatusSeeOther)
 }
@@ -463,7 +582,7 @@ func (app *application) userSignupPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Otherwise add a confirmation flash message confirming that signup worked.
-	app.sessionManager.Put(r.Context(), "flash", "Your signup was successful. Please log in.")
+	app.flash(r, "Your signup was successful. Please log in.")
 	http.Redirect(w, r, "/user/login", http.StatusSeeOther)
 }
 
@@ -519,7 +638,7 @@ func (app *application) userLoginPost(w http.ResponseWriter, r *http.Request) {
 	// Add the ID of the current user to the session, so that they are now
 	// 'logged in'.
 	app.sessionManager.Put(r.Context(), "authenticatedUserID", id)
-	app.sessionManager.Put(r.Context(), "flash", "You've been logged in successfully!")
+	app.flash(r, "You've been logged in successfully!")
 	target := app.sessionManager.PopString(r.Context(), "target")
 	if target == "" {
 		target = "/"
@@ -541,7 +660,7 @@ func (app *application) userLogoutPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Add a flash message to confirm success.
-	app.sessionManager.Put(r.Context(), "flash", "You've been logged out successfully!")
+	app.flash(r, "You've been logged out successfully!")
 	// Redirect the user to the application home page.
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
@@ -624,7 +743,7 @@ func (app *application) userPasswordPost(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	app.sessionManager.Put(r.Context(), "flash", "Password updated successfully!")
+	app.flash(r, "Password updated successfully!")
 
 	http.Redirect(w, r, "/account/view", http.StatusSeeOther)
 }

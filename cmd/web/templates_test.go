@@ -36,3 +36,32 @@ func TestHumanDate(t *testing.T) {
 		})
 	}
 }
+
+func TestShortDate(t *testing.T) {
+	now := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
+	assert.Equal(t, shortDate(time.Date(2026, 3, 6, 9, 0, 0, 0, time.UTC), now), "6 Mar")
+	assert.Equal(t, shortDate(time.Date(2025, 12, 31, 9, 0, 0, 0, time.UTC), now), "31 Dec 2025")
+	assert.Equal(t, shortDate(time.Time{}, now), "")
+}
+
+// The same name always gets the same one of the 8 colours.
+func TestColour(t *testing.T) {
+	assert.Equal(t, colour("go"), colour("go"))
+	seen := map[string]bool{}
+	for _, name := range []string{"go", "docs", "sqlite", "css", "htmx", "reading", "books", "self-hosting", "a", "b", "c", "d"} {
+		c := colour(name)
+		if len(c) != 2 || c[0] != 'c' || c[1] < '0' || c[1] > '7' {
+			t.Errorf("colour(%q) = %q", name, c)
+		}
+		seen[c] = true
+	}
+	if len(seen) < 4 {
+		t.Errorf("only %d colours used for 12 names", len(seen))
+	}
+}
+
+func TestInitial(t *testing.T) {
+	assert.Equal(t, initial("go.dev"), "G")
+	assert.Equal(t, initial("ärzte.de"), "Ä")
+	assert.Equal(t, initial(""), "?")
+}

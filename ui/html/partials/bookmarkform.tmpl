@@ -2,49 +2,40 @@
 {{define "bookmarkform"}}
 <form action='{{.Form.Action}}' method='POST'>
     {{range .Form.NonFieldErrors}}
-    <div class='error'>{{.}}</div>
+    <p class='form-error'>{{.}}</p>
     {{end}}
-    <div>
-        <label>URL:</label>
-        {{with .Form.FieldErrors.url}}
-        <label class='error'>{{.}}</label>
-        {{end}}
-        <input type='url' name='url' value='{{.Form.URL}}' placeholder='https://'>
+    <div class='field'>
+        <label for='url'>Address</label>
+        {{with .Form.FieldErrors.url}}<p class='field-error' id='url-error'>{{.}}</p>{{end}}
+        <input id='url' type='url' name='url' value='{{.Form.URL}}' placeholder='https://'{{with .Form.FieldErrors.url}} aria-invalid='true' aria-describedby='url-error'{{end}}>
     </div>
-    <div>
-        <label>Title:</label>
-        {{with .Form.FieldErrors.title}}
-        <label class='error'>{{.}}</label>
-        {{end}}
-        <input type='text' name='title' value='{{.Form.Title}}'>
+    <div class='field'>
+        <label for='title'>Title</label>
+        {{with .Form.FieldErrors.title}}<p class='field-error' id='title-error'>{{.}}</p>{{end}}
+        <input id='title' type='text' name='title' value='{{.Form.Title}}'{{with .Form.FieldErrors.title}} aria-invalid='true' aria-describedby='title-error'{{end}}>
     </div>
-    <div>
-        <label>Description:</label>
-        {{with .Form.FieldErrors.description}}
-        <label class='error'>{{.}}</label>
-        {{end}}
-        <input type='text' name='description' value='{{.Form.Description}}'>
+    <div class='field'>
+        <label for='description'>Description</label>
+        {{with .Form.FieldErrors.description}}<p class='field-error' id='description-error'>{{.}}</p>{{end}}
+        <input id='description' type='text' name='description' value='{{.Form.Description}}'{{with .Form.FieldErrors.description}} aria-invalid='true' aria-describedby='description-error'{{end}}>
     </div>
-    <div>
-        <label>Tags (comma-separated):</label>
-        {{with .Form.FieldErrors.tags}}
-        <label class='error'>{{.}}</label>
-        {{end}}
-        <input type='text' name='tags' value='{{.Form.Tags}}' placeholder='go, databases'>
+    <div class='field'>
+        <label for='tags'>Tags</label>
+        <p class='hint' id='tags-hint'>Separate tags with commas.</p>
+        {{with .Form.FieldErrors.tags}}<p class='field-error' id='tags-error'>{{.}}</p>{{end}}
+        <input id='tags' type='text' name='tags' value='{{.Form.Tags}}' placeholder='go, databases' aria-describedby='tags-hint{{with .Form.FieldErrors.tags}} tags-error{{end}}'{{with .Form.FieldErrors.tags}} aria-invalid='true'{{end}}>
     </div>
-    <div>
-        <label>Notes:</label>
-        {{with .Form.FieldErrors.notes}}
-        <label class='error'>{{.}}</label>
-        {{end}}
-        <textarea name='notes'>{{.Form.Notes}}</textarea>
+    <div class='field'>
+        <label for='notes'>Notes</label>
+        {{with .Form.FieldErrors.notes}}<p class='field-error' id='notes-error'>{{.}}</p>{{end}}
+        <textarea id='notes' name='notes' rows='6'{{with .Form.FieldErrors.notes}} aria-invalid='true' aria-describedby='notes-error'{{end}}>{{.Form.Notes}}</textarea>
     </div>
-    <div>
+    <div class='field choices'>
         <label class='choice'><input type='checkbox' name='favourite' value='true' {{if .Form.Favourite}}checked{{end}}> Favourite</label>
         <label class='choice'><input type='checkbox' name='read_later' value='true' {{if .Form.ReadLater}}checked{{end}}> Read later</label>
     </div>
-    <div>
-        <input type='submit' value='Save bookmark'>
+    <div class='form-actions'>
+        <button class='button primary'>Save bookmark</button>
     </div>
 </form>
 {{end}}

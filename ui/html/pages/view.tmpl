@@ -1,30 +1,31 @@
 {{define "title"}}{{.Bookmark.Title}}{{end}}
 {{define "main"}}
 {{with .Bookmark}}
-<div class='bookmark'>
-    <div class='metadata'>
-        <strong>{{if .Favourite}}&#9733; {{end}}{{.Title}}</strong>
-        <span>{{domain .URL}}</span>
+{{$item := detailsItem .}}
+{{$domain := domain .URL}}
+<article class='bookmark'>
+    <div class='bookmark-head'>
+        <span class='ico ico-large {{colour $domain}}' aria-hidden='true'>{{initial $domain}}</span>
+        <h1>{{.Title}}</h1>
+        {{template "star" $item}}
     </div>
-    <p><a href='{{.URL}}' rel='noopener noreferrer'>{{.URL}}</a></p>
-    {{with .Description}}<p>{{.}}</p>{{end}}
-    {{with .Notes}}<pre><code>{{.}}</code></pre>{{end}}
-    {{if .Tags}}
-    <p>{{range .Tags}}<span class='tag'>{{.}}</span> {{end}}</p>
+    <p class='url'><a href='{{.URL}}' rel='noopener noreferrer'>{{.URL}}</a></p>
+    {{with .Description}}<p class='description'>{{.}}</p>{{end}}
+    {{template "tageditor" $}}
+    {{with .Notes}}
+    <h2>Notes</h2>
+    <div class='notes'>{{.}}</div>
     {{end}}
-    <div class='metadata'>
-        <time>Saved: {{humanDate .Created}}</time>
-        {{if .ReadLater}}<span>Read later</span>{{end}}
-    </div>
-    <div class='actions'>
-        <a href='/bookmarks/{{.ID}}/edit'>Edit</a>
-        <form action='/bookmarks/{{.ID}}/favourite' method='POST'>
-            <button>{{if .Favourite}}Remove star{{else}}Star{{end}}</button>
-        </form>
-        <form action='/bookmarks/{{.ID}}/delete' method='POST'>
-            <button>Delete</button>
+    <div class='bookmark-actions'>
+        {{template "readlater" $item}}
+        <span class='saved'>Saved {{humanDate .Created}}</span>
+        <a class='button' href='/bookmarks/{{.ID}}/edit'>Edit</a>
+        <form class='inline' action='/bookmarks/{{.ID}}/delete' method='POST'
+            hx-post='/bookmarks/{{.ID}}/delete' hx-confirm='Delete “{{.Title}}”?'>
+            <input type='hidden' name='next' value='/'>
+            <button class='button danger'>Delete</button>
         </form>
     </div>
-</div>
+</article>
 {{end}}
 {{end}}

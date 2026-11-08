@@ -127,7 +127,9 @@ func TestHome(t *testing.T) {
 	ts.login(t)
 	code, _, body = ts.get(t, "/")
 	assert.Equal(t, code, http.StatusOK)
-	assert.StringContains(t, body, "<a href='/bookmarks/1'>Effective Go</a>")
+	// The title opens the website, and Details opens the Bookmark's own page.
+	assert.StringContains(t, body, "<a class='title' href='https://go.dev/doc/effective_go' rel='noopener noreferrer'>Effective Go</a>")
+	assert.StringContains(t, body, "<a href='/bookmarks/1'>Details</a>")
 	assert.StringContains(t, body, "go.dev")
 }
 
@@ -445,7 +447,7 @@ func TestTags(t *testing.T) {
 		{"Blank", "/tags/1/rename", "  ", "", http.StatusUnprocessableEntity, "cannot be blank"},
 		{"Comma", "/tags/1/rename", "a,b", "", http.StatusUnprocessableEntity, "cannot contain a comma"},
 		{"Too long", "/tags/1/rename", strings.Repeat("a", 51), "", http.StatusUnprocessableEntity, "50 characters or fewer"},
-		{"Existing name asks first", "/tags/1/rename", "go", "", http.StatusOK, "will merge into it, affecting\n    1 bookmark."},
+		{"Existing name asks first", "/tags/1/rename", "go", "", http.StatusOK, "will merge into it, affecting\n        1 bookmark."},
 		{"Plural count", "/tags/2/rename", "docs", "", http.StatusOK, "3 bookmarks."},
 		{"Confirmed merge", "/tags/1/rename", "go", "true", http.StatusSeeOther, ""},
 		{"Other user's tag", "/tags/9/rename", "x", "", http.StatusNotFound, ""},
@@ -525,7 +527,7 @@ func TestSignupClosed(t *testing.T) {
 		ts := newTestServer(t, app.routes())
 		defer ts.Close()
 		_, _, home := ts.get(t, "/")
-		assert.StringContains(t, home, "<a href='/user/signup'>Signup</a>")
+		assert.StringContains(t, home, "<a class='button' href='/user/signup'>Sign up</a>")
 		_, _, body := ts.get(t, "/user/signup")
 		assert.StringContains(t, body, "<form action='/user/signup'")
 	})
@@ -540,7 +542,7 @@ func TestSignupClosed(t *testing.T) {
 		if strings.Contains(home, "/user/signup") {
 			t.Error("home page still links to signup")
 		}
-		assert.StringContains(t, home, "<a href='/user/login'>Log in</a>")
+		assert.StringContains(t, home, "<a class='button primary' href='/user/login'>Log in</a>")
 
 		code, _, body := ts.get(t, "/user/signup")
 		assert.Equal(t, code, http.StatusOK)
@@ -617,23 +619,165 @@ func TestFormSizeLimit(t *testing.T) {
 	assert.Equal(t, code, http.StatusBadRequest)
 }
 
-// Favourite and delete only work on the user's own bookmarks.
+// Favourite, Read later and delete only work on the user's own bookmarks.
+// Without JavaScript they redirect back to the page the form was on.
 func TestBookmarkActions(t *testing.T) {
 	app := newTestApplication(t)
 	ts := newTestServer(t, app.routes())
 	defer ts.Close()
 	ts.login(t)
 
-	for _, action := range []string{"favourite", "delete"} {
+	for _, action := range []string{"favourite", "read-later", "delete"} {
 		t.Run(action+" own", func(t *testing.T) {
-			code, _, _ := ts.postForm(t, "/bookmarks/1/"+action, url.Values{})
+			code, header, _ := ts.postForm(t, "/bookmarks/1/"+action, url.Values{"next": {"/"}})
 			assert.Equal(t, code, http.StatusSeeOther)
+			assert.Equal(t, header.Get("Location"), "/")
 		})
 		t.Run(action+" other", func(t *testing.T) {
 			code, _, _ := ts.postForm(t, "/bookmarks/2/"+action, url.Values{})
 			assert.Equal(t, code, http.StatusNotFound)
 		})
+		t.Run(action+" cross origin", func(t *testing.T) {
+			code, _, _ := ts.postFormCrossOrigin(t, "/bookmarks/1/"+action, url.Values{})
+			assert.Equal(t, code, http.StatusForbidden)
+		})
 	}
+
+	t.Run("Next must stay on this site", func(t *testing.T) {
+		for _, next := range []string{"https://evil.example.com", "//evil.example.com", "/\\evil.example.com", "javascript:alert(1)"} {
+			code, header, _ := ts.postForm(t, "/bookmarks/1/favourite", url.Values{"next": {next}})
+			assert.Equal(t, code, http.StatusSeeOther)
+			assert.Equal(t, header.Get("Location"), "/bookmarks/1")
+		}
+	})
+}
+
+// postHTMX sends a form as htmx does, with extra headers.
+func (ts *testServer) postHTMX(t *testing.T, urlPath string, form url.Values, headers map[string]string) (int, http.Header, string) {
+	req, err := http.NewRequest(http.MethodPost, ts.URL+urlPath, strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+	for name, value := range headers {
+		req.Header.Set(name, value)
+	}
+	rs, err := ts.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rs.Body.Close()
+	body, err := io.ReadAll(rs.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rs.StatusCode, rs.Header, string(body)
+}
+
+// htmx gets just the changed piece of the page back.
+func TestBookmarkActionsInPlace(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+	ts.login(t)
+
+	t.Run("Favourite returns the star", func(t *testing.T) {
+		code, _, body := ts.postHTMX(t, "/bookmarks/1/favourite", url.Values{"next": {"/"}}, nil)
+		assert.Equal(t, code, http.StatusOK)
+		assert.StringContains(t, body, "class='star'")
+		assert.StringContains(t, body, "<input type='hidden' name='next' value='/'>")
+		if strings.Contains(body, "<html") {
+			t.Error("got a whole page, want a fragment")
+		}
+	})
+
+	t.Run("Read later returns the toggle", func(t *testing.T) {
+		code, _, body := ts.postHTMX(t, "/bookmarks/1/read-later", url.Values{}, nil)
+		assert.Equal(t, code, http.StatusOK)
+		assert.StringContains(t, body, "<button class='toggle'")
+	})
+
+	t.Run("Deleting a list row returns nothing", func(t *testing.T) {
+		code, header, body := ts.postHTMX(t, "/bookmarks/1/delete", url.Values{}, map[string]string{"HX-Target": "bookmark-1"})
+		assert.Equal(t, code, http.StatusOK)
+		assert.Equal(t, body, "")
+		assert.Equal(t, header.Get("HX-Redirect"), "")
+	})
+
+	t.Run("Deleting from its own page goes home", func(t *testing.T) {
+		code, header, _ := ts.postHTMX(t, "/bookmarks/1/delete", url.Values{"next": {"/"}}, nil)
+		assert.Equal(t, code, http.StatusOK)
+		assert.Equal(t, header.Get("HX-Redirect"), "/")
+	})
+
+	t.Run("Other user's bookmark", func(t *testing.T) {
+		code, _, _ := ts.postHTMX(t, "/bookmarks/2/favourite", url.Values{}, nil)
+		assert.Equal(t, code, http.StatusNotFound)
+	})
+}
+
+func TestBookmarkTagChanges(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+	ts.login(t)
+
+	tests := []struct {
+		name      string
+		path      string
+		tag       string
+		wantCode  int
+		wantError string
+	}{
+		{"Add", "/bookmarks/1/tags", "reading", http.StatusOK, ""},
+		{"Remove", "/bookmarks/1/tags/remove", "go", http.StatusOK, ""},
+		{"Blank", "/bookmarks/1/tags", "  ", http.StatusOK, "cannot be blank"},
+		{"Comma", "/bookmarks/1/tags", "a,b", http.StatusOK, "cannot contain a comma"},
+		{"Too long", "/bookmarks/1/tags", strings.Repeat("a", 51), http.StatusOK, "50 characters or fewer"},
+		{"Over the tag limit", "/bookmarks/1/tags", mocks.OverTagLimitTag, http.StatusOK, "limit of tags"},
+		{"Other user's bookmark", "/bookmarks/2/tags", "x", http.StatusNotFound, ""},
+		{"Invalid ID", "/bookmarks/foo/tags", "x", http.StatusNotFound, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name+" in place", func(t *testing.T) {
+			code, _, body := ts.postHTMX(t, tt.path, url.Values{"name": {tt.tag}}, nil)
+			assert.Equal(t, code, tt.wantCode)
+			if tt.wantCode != http.StatusOK {
+				return
+			}
+			assert.StringContains(t, body, "<div class='tag-editor' id='tag-editor'>")
+			if tt.wantError != "" {
+				assert.StringContains(t, body, tt.wantError)
+			} else if strings.Contains(body, "field-error") {
+				t.Errorf("unexpected error in %q", body)
+			}
+		})
+		t.Run(tt.name+" without JavaScript", func(t *testing.T) {
+			code, header, _ := ts.postForm(t, tt.path, url.Values{"name": {tt.tag}})
+			if tt.wantCode != http.StatusOK {
+				assert.Equal(t, code, tt.wantCode)
+				return
+			}
+			assert.Equal(t, code, http.StatusSeeOther)
+			assert.Equal(t, header.Get("Location"), "/bookmarks/1")
+			if tt.wantError != "" {
+				_, _, page := ts.get(t, "/bookmarks/1")
+				assert.StringContains(t, page, "<p class='flash flash-error' role='status'>")
+				assert.StringContains(t, page, tt.wantError)
+			}
+		})
+	}
+
+	t.Run("Adding keeps the field focused", func(t *testing.T) {
+		_, _, body := ts.postHTMX(t, "/bookmarks/1/tags", url.Values{"name": {"next"}}, nil)
+		assert.StringContains(t, body, "autofocus")
+	})
+
+	t.Run("Cross origin post blocked", func(t *testing.T) {
+		code, _, _ := ts.postFormCrossOrigin(t, "/bookmarks/1/tags", url.Values{"name": {"x"}})
+		assert.Equal(t, code, http.StatusForbidden)
+	})
 }
 
 // Test for Change User Password

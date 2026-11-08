@@ -74,6 +74,26 @@ func (m *BookmarkModel) ToggleFavourite(userID, id int) error {
 	return err
 }
 
+func (m *BookmarkModel) ToggleReadLater(userID, id int) error {
+	_, err := m.Get(userID, id)
+	return err
+}
+
+func (m *BookmarkModel) AddTag(userID, id int, name string) error {
+	if _, err := m.Get(userID, id); err != nil {
+		return err
+	}
+	if slices.Contains(models.NormaliseTags([]string{name}), OverTagLimitTag) {
+		return models.ErrTagLimit
+	}
+	return nil
+}
+
+func (m *BookmarkModel) RemoveTag(userID, id int, name string) error {
+	_, err := m.Get(userID, id)
+	return err
+}
+
 func (m *BookmarkModel) Delete(userID, id int) error {
 	_, err := m.Get(userID, id)
 	return err

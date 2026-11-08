@@ -1,23 +1,12 @@
 {{define "nav"}}
-<nav>
-    <div>
-        <a href='/'>Home</a>
-        {{if .IsAuthenticated}}
-        <a href='/bookmarks/new'>Add bookmark</a>
-        <a href='/tags'>Tags</a>
-        {{end}}
-        <a href='/about'>About</a>
-    </div>
-    <div>
-        {{if .IsAuthenticated}}
-        <a href='/account/view'>Account</a>
+<nav aria-label='Main'>
+    <a href='/'{{if eq .CurrentPath "/"}} aria-current='page'{{end}}>Bookmarks</a>
+    <a href='/tags'{{if eq .CurrentPath "/tags"}} aria-current='page'{{end}}>Tags</a>
+    <span class='nav-end'>
+        <a href='/account/view'{{if eq .CurrentPath "/account/view"}} aria-current='page'{{end}}>Account</a>
         <form action='/user/logout' method='POST'>
-            <button>Logout</button>
+            <button class='link'>Log out</button>
         </form>
-        {{else}}
-        {{if .SignupOpen}}<a href='/user/signup'>Signup</a>{{end}}
-        <a href='/user/login'>Login</a>
-        {{end}}
-    </div>
+    </span>
 </nav>
 {{end}}

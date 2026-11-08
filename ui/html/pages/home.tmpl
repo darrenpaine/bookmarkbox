@@ -1,32 +1,25 @@
 {{define "title"}}Home{{end}}
 {{define "main"}}
 {{if .IsAuthenticated}}
-<h2>Your Bookmarks</h2>
+<h1>Your bookmarks</h1>
 {{if .Bookmarks}}
-<table class='bookmarks'>
-    <tr>
-        <th>Title</th>
-        <th>Tags</th>
-        <th>Saved</th>
-    </tr>
-    {{range .Bookmarks}}
-    <tr>
-        <td>
-            {{if .Favourite}}<span class='star' title='Favourite'>&#9733;</span>{{end}}
-            <a href='/bookmarks/{{.ID}}'>{{.Title}}</a>
-            <span class='domain'>{{domain .URL}}</span>
-        </td>
-        <td>{{range .Tags}}<span class='tag'>{{.}}</span> {{end}}</td>
-        <td>{{humanDate .Created}}</td>
-    </tr>
-    {{end}}
-</table>
+<ul class='list'>
+    {{range .Bookmarks}}{{template "bookmarkrow" (listItem .)}}{{end}}
+</ul>
 {{else}}
-<p>No bookmarks yet. <a href='/bookmarks/new'>Add your first one</a>.</p>
+<div class='empty'>
+    <p>No bookmarks yet.</p>
+    <a class='button primary' href='/bookmarks/new'>Add a bookmark</a>
+</div>
 {{end}}
 {{else}}
-<h2>Welcome to BookmarkBox</h2>
-<p>Save, tag and star your bookmarks in one place.</p>
-<p>{{if .SignupOpen}}<a href='/user/signup'>Sign up</a> or {{end}}<a href='/user/login'>Log in</a> to get started.</p>
+<section class='welcome'>
+    <h1>Welcome to BookmarkBox</h1>
+    <p>Keep your links in one place, with tags to group them and a star for the ones that matter.</p>
+    <p class='actions'>
+        {{if .SignupOpen}}<a class='button primary' href='/user/signup'>Sign up</a>{{end}}
+        <a class='button{{if not .SignupOpen}} primary{{end}}' href='/user/login'>Log in</a>
+    </p>
+</section>
 {{end}}
 {{end}}
