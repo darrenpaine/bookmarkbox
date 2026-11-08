@@ -92,11 +92,12 @@ func TestBookmarkModelInsert(t *testing.T) {
 		assert.NilError(t, err)
 	})
 
-	t.Run("Latest is newest first", func(t *testing.T) {
-		list, err := m.Latest(1, 10)
+	t.Run("Listed newest first, with its domain", func(t *testing.T) {
+		page, err := m.List(1, ListQuery{})
 		assert.NilError(t, err)
-		assert.Equal(t, len(list), 2)
-		assert.Equal(t, list[0].ID, id)
+		assert.Equal(t, len(page.Bookmarks), 2)
+		assert.Equal(t, page.Bookmarks[0].ID, id)
+		assert.Equal(t, page.Bookmarks[0].Domain, "pkg.go.dev")
 	})
 }
 
@@ -207,9 +208,9 @@ func TestBookmarkLimit(t *testing.T) {
 	assert.Equal(t, errors.Is(err, ErrBookmarkLimit), true)
 
 	// Nothing from the failed save remains.
-	list, err := m.Latest(1, 10)
+	page, err := m.List(1, ListQuery{})
 	assert.NilError(t, err)
-	assert.Equal(t, len(list), 2)
+	assert.Equal(t, page.Total, 2)
 	if got := tagNames(t, db, 1); slices.Contains(got, "new") {
 		t.Errorf("tag was saved: %q", got)
 	}
@@ -263,9 +264,9 @@ func TestTagLimit(t *testing.T) {
 	t.Run("New tag refused", func(t *testing.T) {
 		_, err := m.Insert(1, &Bookmark{URL: "https://b.example.com", Title: "B", Tags: []string{"third"}})
 		assert.Equal(t, errors.Is(err, ErrTagLimit), true)
-		list, err := m.Latest(1, 10)
+		page, err := m.List(1, ListQuery{})
 		assert.NilError(t, err)
-		assert.Equal(t, len(list), 2)
+		assert.Equal(t, page.Total, 2)
 	})
 
 	t.Run("Existing tags are fine", func(t *testing.T) {

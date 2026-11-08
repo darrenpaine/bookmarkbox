@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/darrenpaine/bookmarkbox/internal/urls"
 )
 
 // BookmarkModelInterface - the bookmark methods used by the handlers.
@@ -16,7 +18,8 @@ type BookmarkModelInterface interface {
 	Insert(userID int, b *Bookmark) (int, error)
 	Get(userID, id int) (*Bookmark, error)
 	Update(userID int, b *Bookmark) error
-	Latest(userID, limit int) ([]*Bookmark, error)
+	List(userID int, q ListQuery) (*ListPage, error)
+	TagCounts(userID int, f Filter) ([]*Tag, error)
 	ToggleFavourite(userID, id int) error
 	ToggleReadLater(userID, id int) error
 	AddTag(userID, id int, name string) error
@@ -43,6 +46,7 @@ type Bookmark struct {
 	Description string
 	Notes       string
 	Favicon     string
+	Domain      string // host without "www.", from the URL
 	Favourite   bool
 	ReadLater   bool
 	Created     time.Time
@@ -91,9 +95,9 @@ func (m *BookmarkModel) Insert(userID int, b *Bookmark) (int, error) {
 		created = time.Now()
 	}
 	stmt := `INSERT INTO bookmarks
-	         (user_id, url, normalised_url, title, description, notes, favicon, favourite, read_later, created_at)
-	         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	result, err := tx.ExecContext(ctx, stmt, userID, b.URL, normalisedURL, b.Title, b.Description, b.Notes,
+	         (user_id, url, normalised_url, domain, title, description, notes, favicon, favourite, read_later, created_at)
+	         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	result, err := tx.ExecContext(ctx, stmt, userID, b.URL, normalisedURL, urls.Domain(b.URL), b.Title, b.Description, b.Notes,
 		b.Favicon, b.Favourite, b.ReadLater, created.UTC())
 	if err != nil {
 		if isUniqueViolation(err, "bookmarks.user_id, bookmarks.normalised_url") {
@@ -191,11 +195,11 @@ func (m *BookmarkModel) Update(userID int, b *Bookmark) error {
 	defer tx.Rollback() // no-op after Commit
 
 	stmt := `UPDATE bookmarks
-	         SET url = ?, normalised_url = ?, title = ?, description = ?, notes = ?,
+	         SET url = ?, normalised_url = ?, domain = ?, title = ?, description = ?, notes = ?,
 	             favourite = ?, read_later = ?,
 	             favicon = CASE WHEN normalised_url = ? THEN favicon ELSE '' END
 	         WHERE user_id = ? AND id = ?`
-	result, err := tx.ExecContext(ctx, stmt, b.URL, normalisedURL, b.Title, b.Description, b.Notes,
+	result, err := tx.ExecContext(ctx, stmt, b.URL, normalisedURL, urls.Domain(b.URL), b.Title, b.Description, b.Notes,
 		b.Favourite, b.ReadLater, normalisedURL, userID, b.ID)
 	if isUniqueViolation(err, "bookmarks.user_id, bookmarks.normalised_url") {
 		return ErrDuplicateURL
@@ -232,7 +236,7 @@ func (m *BookmarkModel) Update(userID int, b *Bookmark) error {
 
 // Columns selected for a Bookmark, with the tags joined into one
 // comma-separated string (tag names never contain commas).
-const bookmarkColumns = `b.id, b.user_id, b.url, b.title, b.description, b.notes, b.favicon,
+const bookmarkColumns = `b.id, b.user_id, b.url, b.domain, b.title, b.description, b.notes, b.favicon,
 	b.favourite, b.read_later, b.created_at,
 	(SELECT group_concat(t.name, ',' ORDER BY t.name)
 	   FROM bookmark_tags bt JOIN tags t ON t.id = bt.tag_id
@@ -242,11 +246,13 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanBookmark(row rowScanner) (*Bookmark, error) {
+// scanBookmark reads the bookmarkColumns, then any extra columns into extra.
+func scanBookmark(row rowScanner, extra ...any) (*Bookmark, error) {
 	b := &Bookmark{}
 	var tags sql.NullString
-	err := row.Scan(&b.ID, &b.UserID, &b.URL, &b.Title, &b.Description, &b.Notes, &b.Favicon,
-		&b.Favourite, &b.ReadLater, &b.Created, &tags)
+	dest := []any{&b.ID, &b.UserID, &b.URL, &b.Domain, &b.Title, &b.Description, &b.Notes, &b.Favicon,
+		&b.Favourite, &b.ReadLater, &b.Created, &tags}
+	err := row.Scan(append(dest, extra...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -267,30 +273,6 @@ func (m *BookmarkModel) Get(userID, id int) (*Bookmark, error) {
 		return nil, err
 	}
 	return b, nil
-}
-
-// Latest returns the user's most recently saved bookmarks, newest first.
-func (m *BookmarkModel) Latest(userID, limit int) ([]*Bookmark, error) {
-	stmt := `SELECT ` + bookmarkColumns + ` FROM bookmarks b
-	         WHERE b.user_id = ? ORDER BY b.created_at DESC, b.id DESC LIMIT ?`
-	rows, err := m.DB.Query(stmt, userID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	bookmarks := []*Bookmark{}
-	for rows.Next() {
-		b, err := scanBookmark(rows)
-		if err != nil {
-			return nil, err
-		}
-		bookmarks = append(bookmarks, b)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-	return bookmarks, nil
 }
 
 // ToggleFavourite flips the favourite star on one of the user's bookmarks.
