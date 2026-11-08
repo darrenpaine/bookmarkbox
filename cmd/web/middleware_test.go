@@ -93,3 +93,35 @@ func TestLogRequestSkipsPing(t *testing.T) {
 		})
 	}
 }
+
+func TestCacheStatic(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+
+	tests := []struct {
+		name      string
+		urlPath   string
+		wantCache string
+	}{
+		{"Current version", "/static/css/main.css?v=" + staticVersion, "public, max-age=31536000, immutable"},
+		{"Old version", "/static/css/main.css?v=old", "public, max-age=3600"},
+		{"No version", "/static/css/main.css", "public, max-age=3600"},
+		{"Font", "/static/fonts/instrument-sans-latin-400-normal.woff2", "public, max-age=31536000, immutable"},
+	}
+	// Pages link to the current version.
+	_, _, page := ts.get(t, "/about")
+	assert.StringContains(t, page, "/static/css/main.css?v="+staticVersion)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			res, err := ts.Client().Get(ts.URL + tt.urlPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			res.Body.Close()
+			assert.Equal(t, res.StatusCode, http.StatusOK)
+			assert.Equal(t, res.Header.Get("Cache-Control"), tt.wantCache)
+		})
+	}
+}

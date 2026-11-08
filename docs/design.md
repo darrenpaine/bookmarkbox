@@ -120,6 +120,7 @@ Form posts are limited to 1 MB in `decodePostForm`. File uploads in step 6 will 
 - **Tag and icon colours:** a Tag's colour class (`c0` to `c7`) comes from an FNV hash of its name, so nothing is stored on a Tag and the CSP needs no inline styles. Letter icons use the same hash on the domain, and stand in for favicons until step 10.
 - **App icon:** a lowercase b on a deep red square, drawn as SVG paths because favicons can't use web fonts, with 32px and 180px PNG fallbacks.
 - **List rows:** a title opens the website itself. Details opens the Bookmark's own page, with its notes and Tag editor.
+- **Caching:** embedded files have no modification time, so `/static` sets `Cache-Control` itself. Page links carry `?v=` with a hash of every static file and are cached for a year. The CSS names fonts without a version, so they are cached for a year too, and a changed font needs a new file name. The two fonts every page uses are preloaded, so text isn't drawn in a fallback font first.
 - **Layout:** a fixed bar holds the wordmark and the Add button. The main nav sits in the bar on wide screens and below it, scrolling away, on screens under 720px. Every control is at least 24px tall.
 
 ### In-place actions
