@@ -52,6 +52,32 @@ var functions = template.FuncMap{
 	"initial":     initial,
 	"listItem":    func(b *models.Bookmark) bookmarkItem { return bookmarkItem{b, "/"} },
 	"detailsItem": func(b *models.Bookmark) bookmarkItem { return bookmarkItem{b, fmt.Sprintf("/bookmarks/%d", b.ID)} },
+	"static":      func(path string) string { return "/static/" + path + "?v=" + staticVersion },
+}
+
+// staticVersion is a hash of every file under ui/static. Page links to static
+// files carry it, so browsers can cache them for a year and still fetch a new
+// copy as soon as any file changes.
+var staticVersion = hashStatic()
+
+func hashStatic() string {
+	h := fnv.New64a()
+	err := fs.WalkDir(ui.Files, "static", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		data, err := fs.ReadFile(ui.Files, path)
+		if err != nil {
+			return err
+		}
+		h.Write([]byte(path))
+		h.Write(data)
+		return nil
+	})
+	if err != nil {
+		panic(err) // the files are embedded, so this can't fail at run time
+	}
+	return fmt.Sprintf("%016x", h.Sum64())
 }
 
 // bookmarkItem is a Bookmark as shown in a list row or on its own page. Next is

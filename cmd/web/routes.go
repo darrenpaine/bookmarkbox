@@ -14,7 +14,7 @@ func (app *application) routes() http.Handler {
 	app.router.Use(app.recoverPanic)
 
 	fs := http.FileServer(http.FS(ui.Files))
-	app.router.Handle("/static/*", fs)
+	app.router.Handle("/static/*", cacheStatic(fs))
 	app.router.Get("/ping", app.ping) // no session/user
 
 	// Unprotected routes - not requiring log in

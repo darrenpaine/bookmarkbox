@@ -8,11 +8,14 @@
         <!-- htmx must not add inline styles or run inline code: the CSP forbids both -->
         <meta name='htmx-config' content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false}'>
         <title>{{template "title" .}} - BookmarkBox</title>
-        <link rel='stylesheet' href='/static/css/main.css'>
-        <link rel='icon' href='/static/img/icon.svg' type='image/svg+xml'>
-        <link rel='icon' href='/static/img/icon-32.png' sizes='32x32' type='image/png'>
-        <link rel='apple-touch-icon' href='/static/img/apple-touch-icon.png'>
-        <script src='/static/js/htmx-2.0.11.min.js' defer></script>
+        <!-- Fetch the fonts every page uses straight away, so text isn't drawn first in a fallback font -->
+        <link rel='preload' href='/static/fonts/instrument-sans-latin-400-normal.woff2' as='font' type='font/woff2' crossorigin>
+        <link rel='preload' href='/static/fonts/ibm-plex-sans-condensed-latin-600-normal.woff2' as='font' type='font/woff2' crossorigin>
+        <link rel='stylesheet' href='{{static "css/main.css"}}'>
+        <link rel='icon' href='{{static "img/icon.svg"}}' type='image/svg+xml'>
+        <link rel='icon' href='{{static "img/icon-32.png"}}' sizes='32x32' type='image/png'>
+        <link rel='apple-touch-icon' href='{{static "img/apple-touch-icon.png"}}'>
+        <script src='{{static "js/htmx-2.0.11.min.js"}}' defer></script>
     </head>
     <body>
         <header class='bar'>

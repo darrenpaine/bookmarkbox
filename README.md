@@ -1,4 +1,4 @@
-## BookmarkBox
+## <img src="ui/static/img/icon.svg" alt="" width="32" height="32"> bookmarkbox
 
 A personal bookmark manager in Go, with tags and favourites.
 

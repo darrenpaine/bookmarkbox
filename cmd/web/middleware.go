@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 func secureHeaders(next http.Handler) http.Handler {
@@ -86,6 +87,22 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 			r = r.WithContext(ctx)
 		}
 		// Call the next handler in the chain.
+		next.ServeHTTP(w, r)
+	})
+}
+
+// cacheStatic lets browsers keep static files. Embedded files have no
+// modification time, so without this every page load fetched the CSS and
+// fonts again, and text was redrawn when the fonts arrived. Links from pages
+// carry ?v=staticVersion, and the CSS names fonts by file name alone, so a
+// changed font must get a new file name.
+func cacheStatic(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("v") == staticVersion || strings.HasPrefix(r.URL.Path, "/static/fonts/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "public, max-age=3600")
+		}
 		next.ServeHTTP(w, r)
 	})
 }
