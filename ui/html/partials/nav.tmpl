@@ -10,3 +10,22 @@
     </span>
 </nav>
 {{end}}
+
+{{/* The search form in the bar. On the list page the results update as you
+     type, keeping the list's Filters; anywhere else Enter opens the results. */}}
+{{define "search"}}
+<form class='search' action='/bookmarks' method='GET' role='search'>
+    <input type='search' name='q' value='{{with .List}}{{.State.Search}}{{end}}' maxlength='200'
+        placeholder='Search bookmarks' aria-label='Search bookmarks' autocomplete='off'
+        {{- with .List}} hx-get='/bookmarks' hx-trigger='input changed delay:500ms, search'
+        hx-include='closest form' hx-target='main' hx-select='main' hx-swap='outerHTML'
+        hx-replace-url='true' hx-sync='this:replace'{{end}}>
+    {{with .List}}{{with .State}}
+    <input type='hidden' name='view' value='{{.View}}'>
+    {{range .Tags}}<input type='hidden' name='tag' value='{{.}}'>{{end}}
+    {{if .Favourite}}<input type='hidden' name='fav' value='1'>{{end}}
+    {{if .ReadLater}}<input type='hidden' name='later' value='1'>{{end}}
+    {{with .Domain}}<input type='hidden' name='domain' value='{{.}}'>{{end}}
+    {{end}}{{end}}
+</form>
+{{end}}

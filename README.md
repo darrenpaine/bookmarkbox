@@ -21,9 +21,9 @@ Based on the 'SnippetBox' project from ["Let's Go" by Alex Edwards](https://lets
 - New look: own CSS and fonts, dark mode, coloured tag ribbons, and a layout that works on phones
 - Star, mark for reading later, tag and delete bookmarks in place with htmx, with no page reload
 - List views (compact, cards and by tag) with filters for tags, domain, favourites and read later, four sorts, and "Show more" paging that never skips a row
+- Search across titles, descriptions, URLs, notes and tags (SQLite FTS5), with results that update as you type
 
 ### Next steps
-- Search across titles, URLs, notes and tags (SQLite FTS5)
 - Import and export the bookmark files from Chrome, Edge, Firefox and Brave
 - Live demo on Render, with seeded data that resets regularly
 - JSON API with personal API tokens

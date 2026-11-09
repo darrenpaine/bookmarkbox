@@ -25,13 +25,16 @@
             </details>
         </div>
     </div>
-    {{if or .State.Tags .State.Domain (gt .State.FilterCount 1)}}
+    {{if or .State.Search .State.Tags .State.Domain (gt .State.FilterCount 1)}}
     <ul class='filters' aria-label='Filters'>
+        {{with .State.Search}}
+        <li class='filter-text'>“{{.}}”<a class='filter-remove' href='{{$.List.State.WithoutSearch}}' aria-label='Remove search {{.}}' title='Remove search'>×</a></li>
+        {{end}}
         {{range .State.Tags}}
         <li class='tag {{colour .}}'>{{.}}<a class='filter-remove' href='{{$.List.State.WithoutTag .}}' aria-label='Remove filter {{.}}' title='Remove filter'>×</a></li>
         {{end}}
         {{with .State.Domain}}
-        <li class='filter-domain'>from {{.}}<a class='filter-remove' href='{{$.List.State.WithoutDomain}}' aria-label='Remove filter {{.}}' title='Remove filter'>×</a></li>
+        <li class='filter-text'>from {{.}}<a class='filter-remove' href='{{$.List.State.WithoutDomain}}' aria-label='Remove filter {{.}}' title='Remove filter'>×</a></li>
         {{end}}
         {{if gt .State.FilterCount 1}}<li><a href='{{.State.Cleared}}'>Clear filters</a></li>{{end}}
     </ul>

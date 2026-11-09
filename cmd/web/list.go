@@ -29,6 +29,9 @@ const (
 // The most Tags one list can filter by. More would only make a slow query.
 const maxFilterTags = 10
 
+// The longest search kept, in characters.
+const maxSearchChars = 200
+
 // listState is everything a list address can say: the List view, the sort,
 // the Filters and a "Show more" marker. Its methods build the addresses for
 // the links on a list page, which always name the view and sort.
@@ -39,10 +42,19 @@ type listState struct {
 
 // readListState reads a list address. A missing or unknown view or sort
 // falls back to the one remembered for the session; one given is remembered.
+// A search is the exception: without a sort it shows the best matches, and
+// that sort is never remembered, as it means nothing without a search.
 func (app *application) readListState(r *http.Request) listState {
 	q := r.URL.Query()
 	s := listState{View: q.Get("view")}
 	s.Sort = q.Get("sort")
+	s.Search = strings.Join(strings.Fields(q.Get("q")), " ")
+	if runes := []rune(s.Search); len(runes) > maxSearchChars {
+		s.Search = strings.TrimSpace(string(runes[:maxSearchChars]))
+	}
+	if s.Search != "" && (s.Sort == "" || s.Sort == models.SortMatch) {
+		s.Sort = models.SortMatch
+	}
 	ctx := r.Context()
 
 	if slices.Contains(listViews, s.View) {
@@ -50,7 +62,9 @@ func (app *application) readListState(r *http.Request) listState {
 	} else if s.View = app.sessionManager.GetString(ctx, sessionListView); !slices.Contains(listViews, s.View) {
 		s.View = viewCompact
 	}
-	if slices.Contains(models.Sorts, s.Sort) {
+	if s.Sort == models.SortMatch && s.Search != "" {
+		// Searching: the best matches, as above.
+	} else if slices.Contains(models.Sorts, s.Sort) {
 		app.sessionManager.Put(ctx, sessionListSort, s.Sort)
 	} else if s.Sort = app.sessionManager.GetString(ctx, sessionListSort); !slices.Contains(models.Sorts, s.Sort) {
 		s.Sort = models.SortNewest
@@ -75,7 +89,12 @@ func (app *application) readListState(r *http.Request) listState {
 func (s listState) URL() string {
 	v := url.Values{}
 	v.Set("view", s.View)
-	v.Set("sort", s.Sort)
+	if s.Sort != "" { // empty: the remembered sort
+		v.Set("sort", s.Sort)
+	}
+	if s.Search != "" {
+		v.Set("q", s.Search)
+	}
 	for _, tag := range s.Tags {
 		v.Add("tag", tag)
 	}
@@ -90,7 +109,7 @@ func (s listState) URL() string {
 	}
 	// Encode sorts the keys; list them in a fixed, readable order instead.
 	parts := []string{}
-	for _, key := range []string{"view", "sort", "tag", "fav", "later", "domain"} {
+	for _, key := range []string{"view", "sort", "q", "tag", "fav", "later", "domain"} {
 		for _, value := range v[key] {
 			parts = append(parts, url.QueryEscape(key)+"="+url.QueryEscape(value))
 		}
@@ -153,10 +172,24 @@ func (s listState) WithoutDomain() string {
 	return s.WithDomain("")
 }
 
+// WithoutSearch drops the search. Its best-match sort goes too: with no sort
+// in the address, the remembered one applies.
+func (s listState) WithoutSearch() string {
+	c := s.clean()
+	c.Search = ""
+	if c.Sort == models.SortMatch {
+		c.Sort = ""
+	}
+	return c.URL()
+}
+
 // Cleared keeps the view and sort, and drops every Filter.
 func (s listState) Cleared() string {
 	c := s.clean()
 	c.Filter = models.Filter{}
+	if c.Sort == models.SortMatch {
+		c.Sort = ""
+	}
 	return c.URL()
 }
 
@@ -174,7 +207,7 @@ func (s listState) UpToURL(marker string) string {
 // FilterCount is how many Filters are on.
 func (s listState) FilterCount() int {
 	n := len(s.Tags)
-	for _, on := range []bool{s.Favourite, s.ReadLater, s.Domain != ""} {
+	for _, on := range []bool{s.Favourite, s.ReadLater, s.Domain != "", s.Search != ""} {
 		if on {
 			n++
 		}
@@ -183,7 +216,7 @@ func (s listState) FilterCount() int {
 }
 
 // Describe names the Bookmarks a list shows, with how many there are, such
-// as "12 bookmarks" or "No favourites tagged go".
+// as "12 bookmarks", "No favourites tagged go" or "3 bookmarks matching “sql”".
 func (s listState) Describe(n int) string {
 	noun := "bookmark"
 	if s.Favourite {
@@ -193,6 +226,9 @@ func (s listState) Describe(n int) string {
 		noun += "s"
 	}
 	parts := []string{noun}
+	if s.Search != "" {
+		parts = append(parts, "matching “"+s.Search+"”")
+	}
 	if s.ReadLater {
 		parts = append(parts, "to read later")
 	}
@@ -233,6 +269,7 @@ func (listPage) SortName(sort string) string {
 		models.SortOldest: "Oldest",
 		models.SortTitle:  "A–Z",
 		models.SortDomain: "Domain",
+		models.SortMatch:  "Best match",
 	}[sort]
 }
 
@@ -241,9 +278,20 @@ func (listPage) ViewName(view string) string {
 	return map[string]string{viewCompact: "Compact", viewCards: "Cards", viewTags: "By Tag"}[view]
 }
 
-// Sorts and Views list the choices, in menu order.
-func (listPage) Sorts() []string { return models.Sorts }
+// Sorts and Views list the choices, in menu order. A search can also be
+// sorted by best match.
+func (p listPage) Sorts() []string {
+	if p.State.Search != "" {
+		return append([]string{models.SortMatch}, models.Sorts...)
+	}
+	return models.Sorts
+}
 func (listPage) Views() []string { return listViews }
+
+// Capped reports whether a search shows only its best matches, out of more.
+func (p listPage) Capped() bool {
+	return p.State.Sort == models.SortMatch && p.Total > len(p.Bookmarks)
+}
 
 // IsSelected reports whether the list is filtered by a Tag.
 func (p listPage) IsSelected(tag string) bool {

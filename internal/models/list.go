@@ -6,6 +6,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"unicode"
 )
 
 // The sorts a list can use. Every sort ends with the Bookmark's ID, so rows
@@ -20,12 +21,21 @@ const (
 // Sorts lists the sorts in the order a menu shows them.
 var Sorts = []string{SortNewest, SortOldest, SortTitle, SortDomain}
 
+// SortMatch orders a search's results by how well they match, best first. It
+// only applies to a search, and shows just the best SearchMax results, with no
+// "Show more": further down, the matches are too weak to be worth reading.
+const SortMatch = "match"
+
 // Rows per "Show more" batch, and the most a page shows when it is loaded
 // down to a marker.
 const (
 	ListBatch = 50
 	ListMax   = 1000
+	SearchMax = 100
 )
+
+// The most words a search uses. Any more are ignored.
+const maxSearchTerms = 20
 
 // ErrBadMarker means a list marker could not be read, or belongs to another sort.
 var ErrBadMarker = errors.New("models: bad list marker")
@@ -37,11 +47,12 @@ type Filter struct {
 	Favourite bool
 	ReadLater bool
 	Domain    string
+	Search    string // words that must all match, as typed
 }
 
 // IsEmpty reports whether the filter shows every Bookmark.
 func (f Filter) IsEmpty() bool {
-	return len(f.Tags) == 0 && !f.Favourite && !f.ReadLater && f.Domain == ""
+	return len(f.Tags) == 0 && !f.Favourite && !f.ReadLater && f.Domain == "" && f.Search == ""
 }
 
 // ListQuery asks for one batch of a list. With neither marker set it starts
@@ -124,13 +135,46 @@ func (f Filter) where(userID int) (string, []any) {
 		                               WHERE bt.bookmark_id = b.id AND t.name = ?)`)
 		args = append(args, tag)
 	}
+	if f.Search != "" {
+		if match := ftsQuery(f.Search); match == "" {
+			conds = append(conds, "FALSE") // nothing in it can match a word
+		} else {
+			conds = append(conds, "b.id IN (SELECT rowid FROM bookmarks_fts WHERE bookmarks_fts MATCH ?)")
+			args = append(args, match)
+		}
+	}
 	return strings.Join(conds, " AND "), args
+}
+
+// ftsQuery turns a search, as typed, into an FTS5 query. Every word must match,
+// and matches as the start of a longer word too, so "migra" finds "migrations".
+// Each word is quoted, so FTS5's own syntax ("OR", "-", quotes and so on) is
+// searched for as text. Words without a letter or digit can never match, so
+// are dropped: "" means the search can't match anything.
+func ftsQuery(search string) string {
+	terms := []string{}
+	for _, word := range strings.Fields(search) {
+		if !strings.ContainsFunc(word, func(r rune) bool { return unicode.IsLetter(r) || unicode.IsNumber(r) }) {
+			continue
+		}
+		terms = append(terms, `"`+strings.ReplaceAll(word, `"`, `""`)+`"*`)
+		if len(terms) == maxSearchTerms {
+			break
+		}
+	}
+	return strings.Join(terms, " ")
 }
 
 // List returns one batch of the user's Bookmarks that match the query.
 // Returns ErrBadMarker if a marker can't be used, and the caller can then
 // start again from the top.
 func (m *BookmarkModel) List(userID int, q ListQuery) (*ListPage, error) {
+	if q.Sort == SortMatch && q.Search != "" {
+		if q.After != "" || q.UpTo != "" {
+			return nil, ErrBadMarker // best matches come in one batch
+		}
+		return m.bestMatches(userID, q.Filter)
+	}
 	if _, ok := sortOrders[q.Sort]; !ok {
 		q.Sort = SortNewest
 	}
@@ -210,6 +254,44 @@ func (m *BookmarkModel) List(userID int, q ListQuery) (*ListPage, error) {
 		}
 	}
 	return page, nil
+}
+
+// The weights of the searched columns when ranking matches: title, description,
+// URL, notes and Tags. A word in the title counts for most, and in the notes least.
+const matchWeights = "10.0, 4.0, 3.0, 1.0, 6.0"
+
+// bestMatches returns the SearchMax Bookmarks that best match a search, with
+// the other Filters, best first. Ties go to the newest.
+func (m *BookmarkModel) bestMatches(userID int, f Filter) (*ListPage, error) {
+	page := &ListPage{Bookmarks: []*Bookmark{}}
+	where, args := f.where(userID)
+	if err := m.DB.QueryRow(`SELECT count(*) FROM bookmarks b WHERE `+where, args...).Scan(&page.Total); err != nil {
+		return nil, err
+	}
+	if page.Total == 0 {
+		return page, nil
+	}
+
+	// Rank by joining the index directly, rather than through where's subquery.
+	match := ftsQuery(f.Search)
+	f.Search = ""
+	where, args = f.where(userID)
+	stmt := `SELECT ` + bookmarkColumns + ` FROM bookmarks_fts JOIN bookmarks b ON b.id = bookmarks_fts.rowid
+	         WHERE bookmarks_fts MATCH ? AND ` + where + `
+	         ORDER BY bm25(bookmarks_fts, ` + matchWeights + `), b.created_at DESC, b.id DESC LIMIT ?`
+	rows, err := m.DB.Query(stmt, append(append([]any{match}, args...), SearchMax)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		b, err := scanBookmark(rows)
+		if err != nil {
+			return nil, err
+		}
+		page.Bookmarks = append(page.Bookmarks, b)
+	}
+	return page, rows.Err()
 }
 
 // compare gives the condition for rows after a marker in this sort or, with
