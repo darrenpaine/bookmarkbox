@@ -14,14 +14,16 @@
         <div class='switch' role='group' aria-label='List view'>
             {{range .Views}}<a href='{{$.List.State.WithView .}}'{{if eq . $.List.State.View}} aria-current='true'{{end}}>{{$.List.ViewName .}}</a>{{end}}
         </div>
-        <a class='chip-toggle' href='{{.State.ToggleFavourite}}'{{if .State.Favourite}} aria-current='true'{{end}}><span aria-hidden='true'>★</span> Favourites</a>
-        <a class='chip-toggle' href='{{.State.ToggleReadLater}}'{{if .State.ReadLater}} aria-current='true'{{end}}>Read later</a>
-        <details class='menu'>
-            <summary>Sort: {{.SortName .State.Sort}}</summary>
-            <ul>
-                {{range .Sorts}}<li><a href='{{$.List.State.WithSort .}}'{{if eq . $.List.State.Sort}} aria-current='true'{{end}}>{{$.List.SortName .}}</a></li>{{end}}
-            </ul>
-        </details>
+        <div class='list-toggles'>
+            <a class='chip-toggle' href='{{.State.ToggleFavourite}}' title='Favourites'{{if .State.Favourite}} aria-current='true'{{end}}><span class='star-mark' aria-hidden='true'>★</span><span class='chip-label'>Favourites</span></a>
+            <a class='chip-toggle' href='{{.State.ToggleReadLater}}'{{if .State.ReadLater}} aria-current='true'{{end}}>Read later</a>
+            <details class='menu'>
+                <summary>Sort: {{.SortName .State.Sort}}</summary>
+                <ul>
+                    {{range .Sorts}}<li><a href='{{$.List.State.WithSort .}}'{{if eq . $.List.State.Sort}} aria-current='true'{{end}}>{{$.List.SortName .}}</a></li>{{end}}
+                </ul>
+            </details>
+        </div>
     </div>
     {{if or .State.Tags .State.Domain (gt .State.FilterCount 1)}}
     <ul class='filters' aria-label='Filters'>
