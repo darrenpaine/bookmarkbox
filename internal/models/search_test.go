@@ -165,3 +165,28 @@ func TestBookmarkModelSearchCap(t *testing.T) {
 	assert.Equal(t, len(page.Bookmarks), ListBatch)
 	assert.Equal(t, page.More, true)
 }
+
+// bm25 takes its weights by position, so they must name every column of the
+// search index, in order.
+func TestMatchWeightsFollowTheIndex(t *testing.T) {
+	db := newTestDB(t)
+	rows, err := db.Query(`SELECT name FROM pragma_table_info('bookmarks_fts') ORDER BY cid`)
+	assert.NilError(t, err)
+	defer rows.Close()
+	columns := []string{}
+	for rows.Next() {
+		var name string
+		assert.NilError(t, rows.Scan(&name))
+		columns = append(columns, name)
+	}
+	assert.NilError(t, rows.Err())
+
+	weighted := []string{}
+	for _, w := range matchWeights {
+		weighted = append(weighted, w.column)
+	}
+	if !slices.Equal(weighted, columns) {
+		t.Errorf("matchWeights has columns %q; bookmarks_fts has %q", weighted, columns)
+	}
+	assert.Equal(t, bm25Weights(), "10, 4, 3, 1, 6")
+}

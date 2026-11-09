@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -256,9 +257,29 @@ func (m *BookmarkModel) List(userID int, q ListQuery) (*ListPage, error) {
 	return page, nil
 }
 
-// The weights of the searched columns when ranking matches: title, description,
-// URL, notes and Tags. A word in the title counts for most, and in the notes least.
-const matchWeights = "10.0, 4.0, 3.0, 1.0, 6.0"
+// matchWeights weights each column of bookmarks_fts when ranking matches. A
+// word in the title counts for most, and in the notes least. bm25 takes the
+// weights by position, so they must list every column in the table's order,
+// which TestMatchWeightsFollowTheIndex checks.
+var matchWeights = []struct {
+	column string
+	weight float64
+}{
+	{"title", 10},
+	{"description", 4},
+	{"url", 3},
+	{"notes", 1},
+	{"tags", 6},
+}
+
+// bm25Weights gives the weights as bm25's arguments, such as "10, 4, 3, 1, 6".
+func bm25Weights() string {
+	weights := make([]string, len(matchWeights))
+	for i, w := range matchWeights {
+		weights[i] = strconv.FormatFloat(w.weight, 'f', -1, 64)
+	}
+	return strings.Join(weights, ", ")
+}
 
 // bestMatches returns the SearchMax Bookmarks that best match a search, with
 // the other Filters, best first. Ties go to the newest.
@@ -278,7 +299,7 @@ func (m *BookmarkModel) bestMatches(userID int, f Filter) (*ListPage, error) {
 	where, args = f.where(userID)
 	stmt := `SELECT ` + bookmarkColumns + ` FROM bookmarks_fts JOIN bookmarks b ON b.id = bookmarks_fts.rowid
 	         WHERE bookmarks_fts MATCH ? AND ` + where + `
-	         ORDER BY bm25(bookmarks_fts, ` + matchWeights + `), b.created_at DESC, b.id DESC LIMIT ?`
+	         ORDER BY bm25(bookmarks_fts, ` + bm25Weights() + `), b.created_at DESC, b.id DESC LIMIT ?`
 	rows, err := m.DB.Query(stmt, append(append([]any{match}, args...), SearchMax)...)
 	if err != nil {
 		return nil, err
