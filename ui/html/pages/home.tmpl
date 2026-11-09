@@ -1,11 +1,13 @@
 {{define "title"}}Home{{end}}
 {{define "main"}}
 <section class='welcome'>
-    <h1>Welcome to BookmarkBox</h1>
-    <p>Keep your links in one place, with tags to group them and a star for the ones that matter.</p>
+    <h1>Welcome to bookmarkbox</h1>
+    <p>Keep your links in one place, with tags to group them and a star for the
+        ones that matter.</p>
     <p class='actions'>
         {{if .SignupOpen}}<a class='button primary' href='/user/signup'>Sign up</a>{{end}}
-        <a class='button{{if not .SignupOpen}} primary{{end}}' href='/user/login'>Log in</a>
+        <a class='button{{if not .SignupOpen}} primary{{end}}'
+            href='/user/login'>Log in</a>
     </p>
 </section>
 {{end}}

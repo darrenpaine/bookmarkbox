@@ -122,7 +122,7 @@ func TestHome(t *testing.T) {
 
 	code, _, body := ts.get(t, "/")
 	assert.Equal(t, code, http.StatusOK)
-	assert.StringContains(t, body, "Welcome to BookmarkBox")
+	assert.StringContains(t, body, "Welcome to bookmarkbox")
 
 	// Logged in, home is the list: see TestBookmarkList.
 }
