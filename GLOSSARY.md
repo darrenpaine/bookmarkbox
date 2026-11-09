@@ -39,8 +39,12 @@ A flag on a Bookmark its Owner means to come back to. It is independent of Favou
 ### Browsing
 
 **List view**:
-A way of displaying a set of Bookmarks, such as compact, cards or by Tag.
+A way of displaying a set of Bookmarks: Compact, Cards or By Tag. It changes how Bookmarks look, never which ones are shown.
 _Avoid_: View (on its own), layout
+
+**Filter**:
+A condition that narrows which Bookmarks a list shows, such as Favourite, Read later, a Tag, a domain or a search. Filters combine, and any List view can show any combination of them.
+_Avoid_: View, smart folder
 
 **Saved view**:
 A named combination of filters that a User can return to.

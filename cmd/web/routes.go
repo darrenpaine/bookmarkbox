@@ -34,6 +34,7 @@ func (app *application) routes() http.Handler {
 		group_router.Use(app.sessionManager.LoadAndSave)
 		group_router.Use(app.authenticate)
 		group_router.Use(app.requireAuthentication)
+		group_router.Get("/bookmarks", app.bookmarkList)
 		group_router.Get("/bookmarks/new", app.bookmarkCreateShowForm)
 		group_router.Post("/bookmarks/new", app.bookmarkCreatePost)
 		group_router.Get("/bookmarks/{id}", app.bookmarkView)

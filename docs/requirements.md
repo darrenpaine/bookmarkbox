@@ -39,18 +39,26 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 
 ### List views and search
 
+A list shows the User's Bookmarks in one List view, narrowed by any combination of Filters, in one sort.
+
 | List view | Shows |
 |---|---|
 | Compact | Favicon, title, domain and Tags; dense, for scanning |
-| Cards | Adds description and thumbnail |
-| By Tag | Grouped sections, or a Tag sidebar with counts |
-| Favourites | Favourite Bookmarks only |
-| Recent / Read later | Newest first, or Read later only |
-| Search | Matches on title, URL, notes and Tags |
+| Cards | Adds the description, or the notes when there is none. A thumbnail comes with page metadata. |
+| By Tag | Compact rows beside a Tag panel with counts |
 
-- Sort by newest, oldest, A-Z or domain.
-- Filter by Tag, Favourite or domain.
-- The last List view is remembered for the session.
+| Filter | Shows |
+|---|---|
+| Favourite | Favourite Bookmarks only |
+| Read later | Bookmarks marked Read later only |
+| Tag | Bookmarks with every chosen Tag |
+| Domain | Bookmarks from one domain |
+| Search | Matches on title, description, URL, notes and Tags |
+
+- Sort by newest, oldest, A-Z or domain. "Recent" is the newest-first sort.
+- Clicking a Tag or domain on a Bookmark filters the list by it.
+- Long lists load 50 at a time with "Show more". Deleting or changing Bookmarks already shown never makes it skip one.
+- The last List view and sort are remembered for the session. Filters are not.
 - Later: Saved views.
 
 ### Import and export
@@ -122,7 +130,7 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 | 2 | **Model fixes and editing:** update Bookmarks, rename Tags, Duplicates by normalised URL, remove unused Tags, text limits, User, Bookmark and Tag limits | Done |
 | 3 | **Packaging:** environment config, `slog`, Dockerfile, compose, CI | Done |
 | 4 | **Restyle:** own CSS, dark mode, htmx actions | Done |
-| 5 | **List views and search,** with "Show more" for long lists | Next |
+| 5 | **List views and search,** with "Show more" for long lists: List views and Filters done, search next | In progress |
 | 6 | **Import and export,** with round-trip tests | Planned |
 | 7 | **Public demo** on Render; needs step 6 for its seed data | Planned |
 | 8 | **JSON API and tokens** | Planned |

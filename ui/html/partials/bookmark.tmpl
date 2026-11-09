@@ -19,32 +19,68 @@
 {{end}}
 
 {{define "bookmarkrow"}}
-{{$domain := domain .URL}}
 <li class='row' id='bookmark-{{.ID}}'>
-    <span class='ico {{colour $domain}}' aria-hidden='true'>{{initial $domain}}</span>
+    <span class='ico {{colour .Domain}}' aria-hidden='true'>{{initial .Domain}}</span>
     <div class='head'>
         <a class='title' href='{{.URL}}' rel='noopener noreferrer'>{{.Title}}</a>
-        <span class='domain'>{{$domain}}</span>
+        <a class='domain' href='{{.DomainURL}}' title='Bookmarks from {{.Domain}}'>{{.Domain}}</a>
     </div>
-    {{if .Tags}}
-    <ul class='tags' aria-label='Tags'>
-        {{range .Tags}}<li class='tag {{colour .}}'>{{.}}</li>{{end}}
-    </ul>
-    {{end}}
+    {{template "rowtags" .}}
     <div class='row-star'>{{template "star" .}}</div>
-    <div class='meta'>
-        {{template "readlater" .}}
-        <time datetime='{{.Created.UTC.Format "2006-01-02"}}'>{{shortDate .Created}}</time>
-        <a href='/bookmarks/{{.ID}}'>Details</a>
-        <a href='/bookmarks/{{.ID}}/edit'>Edit</a>
-        <form class='inline' action='/bookmarks/{{.ID}}/delete' method='POST'
-            hx-post='/bookmarks/{{.ID}}/delete' hx-target='#bookmark-{{.ID}}' hx-swap='outerHTML'
-            hx-confirm='Delete “{{.Title}}”?'>
-            <input type='hidden' name='next' value='{{.Next}}'>
-            <button class='link'>Delete</button>
-        </form>
-    </div>
+    <div class='meta'>{{template "rowactions" .}}</div>
 </li>
+{{end}}
+
+{{define "bookmarkcard"}}
+<li class='card' id='bookmark-{{.ID}}'>
+    <div class='card-head'>
+        <span class='ico ico-large {{colour .Domain}}' aria-hidden='true'>{{initial .Domain}}</span>
+        <div class='head'>
+            <a class='title' href='{{.URL}}' rel='noopener noreferrer'>{{.Title}}</a>
+            <a class='domain' href='{{.DomainURL}}' title='Bookmarks from {{.Domain}}'>{{.Domain}}</a>
+        </div>
+        {{template "star" .}}
+    </div>
+    {{if .Description}}<p class='card-text'>{{.Description}}</p>
+    {{else if .Notes}}<p class='card-text'>{{.Notes}}</p>{{end}}
+    {{template "rowtags" .}}
+    <div class='meta'>{{template "rowactions" .}}</div>
+</li>
+{{end}}
+
+{{define "rowtags"}}
+{{if .Tags}}
+<ul class='tags' aria-label='Tags'>
+    {{range .Tags}}<li class='tag {{colour .}}'><a href='{{$.TagURL .}}' title='Bookmarks tagged {{.}}'>{{.}}</a></li>{{end}}
+</ul>
+{{end}}
+{{end}}
+
+{{define "rowactions"}}
+{{template "readlater" .}}
+<time datetime='{{.Created.UTC.Format "2006-01-02"}}'>{{shortDate .Created}}</time>
+<a href='/bookmarks/{{.ID}}'>Details</a>
+<a href='/bookmarks/{{.ID}}/edit'>Edit</a>
+<form class='inline' action='/bookmarks/{{.ID}}/delete' method='POST'
+    hx-post='/bookmarks/{{.ID}}/delete' hx-target='#bookmark-{{.ID}}' hx-swap='outerHTML'
+    hx-confirm='Delete “{{.Title}}”?'>
+    <input type='hidden' name='next' value='{{.Next}}'>
+    <button class='link'>Delete</button>
+</form>
+{{end}}
+
+<!-- A list's rows, then "Show more" if more follow. htmx swaps a batch of
+     these in place of the "Show more" item it came from. -->
+{{define "listmore"}}
+{{range .Bookmarks}}
+{{if eq $.State.View "cards"}}{{template "bookmarkcard" (listItem . $)}}{{else}}{{template "bookmarkrow" (listItem . $)}}{{end}}
+{{end}}
+{{if .More}}
+<li class='more'>
+    <a class='button' href='{{.State.AfterURL .Last}}'
+        hx-get='{{.State.AfterURL .Last}}' hx-target='closest li' hx-swap='outerHTML'>Show more</a>
+</li>
+{{end}}
 {{end}}
 
 {{define "tageditor"}}
@@ -53,7 +89,7 @@
     {{if .Tags}}
     <ul class='tags' aria-label='Tags'>
         {{range .Tags}}
-        <li class='tag {{colour .}}'>{{.}}
+        <li class='tag {{colour .}}'><a href='/bookmarks?tag={{.}}' title='Bookmarks tagged {{.}}'>{{.}}</a>
             <form class='inline' action='/bookmarks/{{$.Bookmark.ID}}/tags/remove' method='POST'
                 hx-post='/bookmarks/{{$.Bookmark.ID}}/tags/remove' hx-target='#tag-editor' hx-swap='outerHTML'>
                 <input type='hidden' name='name' value='{{.}}'>

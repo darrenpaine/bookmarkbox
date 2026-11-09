@@ -1,18 +1,5 @@
 {{define "title"}}Home{{end}}
 {{define "main"}}
-{{if .IsAuthenticated}}
-<h1>Your bookmarks</h1>
-{{if .Bookmarks}}
-<ul class='list'>
-    {{range .Bookmarks}}{{template "bookmarkrow" (listItem .)}}{{end}}
-</ul>
-{{else}}
-<div class='empty'>
-    <p>No bookmarks yet.</p>
-    <a class='button primary' href='/bookmarks/new'>Add a bookmark</a>
-</div>
-{{end}}
-{{else}}
 <section class='welcome'>
     <h1>Welcome to BookmarkBox</h1>
     <p>Keep your links in one place, with tags to group them and a star for the ones that matter.</p>
@@ -21,5 +8,4 @@
         <a class='button{{if not .SignupOpen}} primary{{end}}' href='/user/login'>Log in</a>
     </p>
 </section>
-{{end}}
 {{end}}

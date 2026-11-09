@@ -12,6 +12,7 @@ var mockBookmark = &models.Bookmark{
 	ID:          1,
 	UserID:      1,
 	URL:         "https://go.dev/doc/effective_go",
+	Domain:      "go.dev",
 	Title:       "Effective Go",
 	Description: "Tips for writing clear, idiomatic Go code.",
 	Created:     time.Now(),
@@ -49,11 +50,51 @@ func (m *BookmarkModel) Get(userID, id int) (*models.Bookmark, error) {
 	return nil, models.ErrNoRecord
 }
 
-func (m *BookmarkModel) Latest(userID, limit int) ([]*models.Bookmark, error) {
-	if userID == mockBookmark.UserID {
-		return []*models.Bookmark{mockBookmark}, nil
+// BadMarker is refused by List, as a marker that can't be read.
+const BadMarker = "bad-marker"
+
+// List gives user 1 the mock Bookmark, unless a filter excludes it or the
+// list starts after MockMarker, the mock Bookmark's own marker.
+func (m *BookmarkModel) List(userID int, q models.ListQuery) (*models.ListPage, error) {
+	if q.After == BadMarker || q.UpTo == BadMarker {
+		return nil, models.ErrBadMarker
 	}
-	return []*models.Bookmark{}, nil
+	page := &models.ListPage{Bookmarks: []*models.Bookmark{}}
+	if userID != mockBookmark.UserID || q.After == MockMarker || !matches(q.Filter) {
+		return page, nil
+	}
+	page.Bookmarks = append(page.Bookmarks, mockBookmark)
+	page.Total = 1
+	page.Last = MockMarker
+	return page, nil
+}
+
+// MockMarker is the marker List gives for the mock Bookmark.
+const MockMarker = "mock-marker"
+
+func matches(f models.Filter) bool {
+	if f.Favourite && !mockBookmark.Favourite || f.ReadLater && !mockBookmark.ReadLater {
+		return false
+	}
+	if f.Domain != "" && f.Domain != mockBookmark.Domain {
+		return false
+	}
+	for _, tag := range f.Tags {
+		if !slices.Contains(mockBookmark.Tags, tag) {
+			return false
+		}
+	}
+	return true
+}
+
+func (m *BookmarkModel) TagCounts(userID int, f models.Filter) ([]*models.Tag, error) {
+	tags := []*models.Tag{}
+	if userID == mockBookmark.UserID && matches(f) {
+		for i, name := range mockBookmark.Tags {
+			tags = append(tags, &models.Tag{ID: i + 1, Name: name, BookmarkCount: 1})
+		}
+	}
+	return tags, nil
 }
 
 func (m *BookmarkModel) Update(userID int, b *models.Bookmark) error {

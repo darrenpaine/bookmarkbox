@@ -22,18 +22,20 @@ Layout:
 - `cmd/web`: handlers, routes, middleware, templates and `main`.
 - `internal/models`: all SQL, behind interfaces. Handler tests use the mocks in `internal/models/mocks`.
 - `internal/validator`: form validation.
-- `migrations`: numbered SQL files.
+- `internal/urls`: URL helpers shared by the models, migrations and templates, such as `Domain`.
+- `migrations`: numbered goose migrations, mostly SQL files. A migration that needs Go code is registered in `migrations.go`.
 - `ui`: templates and static files.
 
 Because it uses one SQLite file, the app runs as one instance.
 
 ## Data model
 
-The schema is in `migrations/00001_init.sql`. Tables: `users`, `sessions`, `bookmarks`, `tags` and `bookmark_tags`.
+The schema starts in `migrations/00001_init.sql`. Tables: `users`, `sessions`, `bookmarks`, `tags` and `bookmark_tags`.
 
 - `users.email` is unique and case-insensitive.
 - `bookmarks` has `UNIQUE (user_id, normalised_url)`, and `tags` has `UNIQUE (user_id, name)`.
 - Deletes cascade from `users` to `bookmarks` and `tags`, and from `bookmarks` and `tags` to `bookmark_tags`.
+- `bookmarks.domain` is the URL's lower-case host without `www.`, from `urls.Domain`, set on every save. Migration 2 is a Go migration so that existing Bookmarks get theirs from the same function. It is indexed with `user_id` for the domain Filter and sort.
 - Foreign keys need turning on for every connection. The default DSN does this with `_pragma=foreign_keys(1)`, along with WAL mode and a busy timeout.
 
 ### Authorization
@@ -93,11 +95,12 @@ Form posts are limited to 1 MB in `decodePostForm`. File uploads in step 6 will 
 
 | Route | Access | Purpose |
 |---|---|---|
-| `GET /` | Public | Latest Bookmarks when logged in, otherwise a welcome page |
+| `GET /` | Public | A welcome page, or a redirect to `/bookmarks` when logged in |
 | `GET /about` | Public | About page |
 | `GET, POST /user/signup` | Public | Sign up |
 | `GET, POST /user/login` | Public | Log in |
 | `POST /user/logout` | Logged in | Log out |
+| `GET /bookmarks` | Logged in | The list, in a List view, with Filters and a sort |
 | `GET, POST /bookmarks/new` | Logged in | Add a Bookmark |
 | `GET /bookmarks/{id}` | Owner | View a Bookmark |
 | `GET, POST /bookmarks/{id}/edit` | Owner | Update a Bookmark |
@@ -130,18 +133,37 @@ htmx 2.0.11 is served from `ui/static/js`. htmx 2.0.x is used because 4.0 was re
 - Every action is an ordinary form post, so everything works without JavaScript. With htmx, the handler sees `HX-Request` and returns just the changed fragment, from the partials in `ui/html/partials/bookmark.tmpl`.
 - **Favourite and Read later** return the new toggle. Without JavaScript they redirect to a `next` path from the form, which must be a path on this site.
 - **Delete** asks first with `hx-confirm`. From a list, `HX-Target` names the row and the empty response removes it. From a Bookmark's page, `HX-Redirect` goes home. Without JavaScript there is no confirmation.
+- htmx keeps no copies of pages for Back (`historyCacheSize: 0`), so Bookmarks never sit in the browser's storage. Back loads the page again instead. A request with `HX-History-Restore-Request` gets a whole page.
 - **Adding and removing a Tag** on a Bookmark's page returns the whole Tag editor. A problem, such as the Tag limit, is shown inside it with a 200, because htmx doesn't swap error responses. After adding, the field keeps focus.
 - The `htmx-config` meta tag turns off htmx's inline indicator styles and `eval`, so the CSP stays `default-src 'self'`.
 - Flash messages have two kinds, success and error.
 
-### List views (Planned)
+### List views
 
-One list handler with query parameters and a few templates, for example `/bookmarks?view=cards&tag=go&fav=1&sort=title`. The last List view is stored in the session. The home list built in step 4 becomes the Compact List view.
+`GET /bookmarks` serves every List view, for example `/bookmarks?view=cards&sort=title&tag=go&tag=web&fav=1&later=1&domain=go.dev`.
 
-- **Long lists:** a "Show more" button at the end adds the next 50 rows in place with htmx, and is an ordinary link to the next batch without JavaScript. The address updates as rows are added, so Back and refresh keep the place. Until then, the home page shows the newest 50.
+- **View:** `compact`, `cards` or `tags` (By Tag). **Sort:** `newest`, `oldest`, `title` (A-Z, ignoring case) or `domain` (then by title).
+- A missing or unknown view or sort uses the one remembered in the session, or Compact and newest. One given in the address is remembered. Filters are never remembered.
+- Links on a list page always name the view and sort, so a copied address shows the same list later. `listState` in `cmd/web/list.go` builds them.
+- **Filters** combine with AND. Several `tag` values mean Bookmarks with all of them, up to 10 Tags. Tag names are normalised as on the form, and the domain is lower-cased.
+- The heading names what is shown, such as "12 favourites tagged go". When Filters match nothing, it says so with "Clear filters". "No bookmarks yet" is only for a User with no Bookmarks.
+- **By Tag** adds a panel of the Tags on the Bookmarks that match the current Filters, with counts. Selected Tags come first, and the panel sticks beside the list. Under 720px it becomes a row of chips that scrolls sideways.
+- Changing the view, a Filter or the sort loads the whole page. Only "Show more" and the row actions work in place.
+
+### Show more
+
+`BookmarkModel.List` returns 50 rows at a time, the total count, and a marker for the last row. It pages by the last row's place in the sort order, not by counting rows, so deleting a row, or changing one so it no longer matches the Filters, never makes the next batch skip one.
+
+- **Marker:** the last row's sort values, as stored, and its ID, as base64url JSON. It holds the values rather than just the ID because that row may have been deleted. A marker that can't be read, or belongs to another sort, redirects to the top of the list.
+- **Sorts:** every sort ends with the ID, and all its values run the same way, so one row-value comparison such as `(created_at, id) < (?, ?)` finds the next batch.
+- `after=` gives the batch after a marker. With htmx, "Show more" swaps that batch in place of itself and sends `HX-Push-Url` with `upto=` and the new last row. Without JavaScript it is an ordinary link to the batch.
+- `upto=` gives every row from the top down to and including a marker, up to 1,000, so reload and Back keep the place. Bookmarks added since appear in their place, never as duplicates.
+
+### Search (Planned)
+
 - **Search in the fixed bar:** a search control joins the Add button. On a phone it is a button that opens the search box, so the bar stays one line.
 
-Search uses an FTS5 index over title, URL, notes and Tags. FTS5 was confirmed working on `modernc.org/sqlite` on 2026-11-04.
+Search uses an FTS5 index over title, description, URL, notes and Tags. FTS5 was confirmed working on `modernc.org/sqlite` on 2026-11-04.
 
 ## Import and export (Planned)
 
