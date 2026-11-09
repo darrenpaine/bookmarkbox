@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/darrenpaine/bookmarkbox/internal/models"
@@ -78,6 +79,12 @@ func matches(f models.Filter) bool {
 	}
 	if f.Domain != "" && f.Domain != mockBookmark.Domain {
 		return false
+	}
+	// Searches only the title: every word must be in it.
+	for _, word := range strings.Fields(f.Search) {
+		if !strings.Contains(strings.ToLower(mockBookmark.Title), strings.ToLower(word)) {
+			return false
+		}
 	}
 	for _, tag := range f.Tags {
 		if !slices.Contains(mockBookmark.Tags, tag) {

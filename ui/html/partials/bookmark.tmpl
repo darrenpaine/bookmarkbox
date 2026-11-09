@@ -80,6 +80,10 @@
     <a class='button' href='{{.State.AfterURL .Last}}'
         hx-get='{{.State.AfterURL .Last}}' hx-target='closest li' hx-swap='outerHTML'>Show more</a>
 </li>
+{{else if .Capped}}
+<li class='more more-note'>
+    <p>Showing the best {{len .Bookmarks}} of {{.Total}}. <a href='{{.State.WithSort "newest"}}'>Show all {{.Total}}, newest first</a></p>
+</li>
 {{end}}
 {{end}}
 

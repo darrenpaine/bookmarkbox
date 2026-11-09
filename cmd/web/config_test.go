@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
@@ -84,6 +85,20 @@ func TestSQLiteDSN(t *testing.T) {
 			assert.Equal(t, busyTimeout, 5000)
 			assert.Equal(t, journalMode, "wal")
 			assert.Equal(t, file, path)
+
+			// A transaction holds the write lock from the start, so another
+			// connection can't take it, even before the first has written.
+			tx, err := db.Begin()
+			assert.NilError(t, err)
+			defer tx.Rollback()
+			other, err := db.Conn(context.Background())
+			assert.NilError(t, err)
+			defer other.Close()
+			_, err = other.ExecContext(context.Background(), "PRAGMA busy_timeout = 0")
+			assert.NilError(t, err)
+			if _, err = other.ExecContext(context.Background(), "BEGIN IMMEDIATE"); err == nil {
+				t.Error("a second connection took the write lock")
+			}
 		})
 	}
 }

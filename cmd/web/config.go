@@ -113,8 +113,10 @@ func envLimit(getenv func(string) string, name string, fallback int) (int, error
 // sqliteDSN builds the connection string for a database file. Foreign keys are
 // off by default in SQLite, so turn them on (needed for ON DELETE CASCADE); WAL
 // and a busy timeout let reads and writes from concurrent requests share the
-// file. The characters that end a path in a URI are escaped.
+// file. Transactions take the write lock as they begin, so one that reads
+// before it writes waits its turn rather than failing at once with "database
+// is locked". The characters that end a path in a URI are escaped.
 func sqliteDSN(path string) string {
 	return "file:" + strings.NewReplacer("%", "%25", "?", "%3f", "#", "%23").Replace(path) +
-		"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+		"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_txlock=immediate"
 }

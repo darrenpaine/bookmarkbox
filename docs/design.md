@@ -36,7 +36,9 @@ The schema starts in `migrations/00001_init.sql`. Tables: `users`, `sessions`, `
 - `bookmarks` has `UNIQUE (user_id, normalised_url)`, and `tags` has `UNIQUE (user_id, name)`.
 - Deletes cascade from `users` to `bookmarks` and `tags`, and from `bookmarks` and `tags` to `bookmark_tags`.
 - `bookmarks.domain` is the URL's lower-case host without `www.`, from `urls.Domain`, set on every save. Migration 2 is a Go migration so that existing Bookmarks get theirs from the same function. It is indexed with `user_id` for the domain Filter and sort.
+- `bookmarks_fts` is the search index, an FTS5 table from migration 3 with one row per Bookmark. See [Search](#search).
 - Foreign keys need turning on for every connection. The default DSN does this with `_pragma=foreign_keys(1)`, along with WAL mode and a busy timeout.
+- Transactions begin with `BEGIN IMMEDIATE` (`_txlock=immediate`), taking the write lock at the start. In WAL mode, a transaction that has read can't wait to upgrade to a write if another connection wrote meanwhile, and fails at once with "database is locked". FTS5 reads its own settings the first time a connection uses the index, so without this, saving a Bookmark could fail under concurrent writes.
 
 ### Authorization
 
@@ -140,7 +142,7 @@ htmx 2.0.11 is served from `ui/static/js`. htmx 2.0.x is used because 4.0 was re
 
 ### List views
 
-`GET /bookmarks` serves every List view, for example `/bookmarks?view=cards&sort=title&tag=go&tag=web&fav=1&later=1&domain=go.dev`.
+`GET /bookmarks` serves every List view, for example `/bookmarks?view=cards&sort=title&q=sql&tag=go&tag=web&fav=1&later=1&domain=go.dev`.
 
 - **View:** `compact`, `cards` or `tags` (By Tag). **Sort:** `newest`, `oldest`, `title` (A-Z, ignoring case) or `domain` (then by title).
 - A missing or unknown view or sort uses the one remembered in the session, or Compact and newest. One given in the address is remembered. Filters are never remembered.
@@ -148,7 +150,7 @@ htmx 2.0.11 is served from `ui/static/js`. htmx 2.0.x is used because 4.0 was re
 - **Filters** combine with AND. Several `tag` values mean Bookmarks with all of them, up to 10 Tags. Tag names are normalised as on the form, and the domain is lower-cased.
 - The heading names what is shown, such as "12 favourites tagged go". When Filters match nothing, it says so with "Clear filters". "No bookmarks yet" is only for a User with no Bookmarks.
 - **By Tag** adds a panel of the Tags on the Bookmarks that match the current Filters, with counts. Selected Tags come first, and the panel sticks beside the list. Under 720px it becomes a row of chips that scrolls sideways.
-- Changing the view, a Filter or the sort loads the whole page. Only "Show more" and the row actions work in place.
+- Changing the view, a Filter or the sort loads the whole page. Only "Show more", live search and the row actions work in place.
 
 ### Show more
 
@@ -159,11 +161,16 @@ htmx 2.0.11 is served from `ui/static/js`. htmx 2.0.x is used because 4.0 was re
 - `after=` gives the batch after a marker. With htmx, "Show more" swaps that batch in place of itself and sends `HX-Push-Url` with `upto=` and the new last row. Without JavaScript it is an ordinary link to the batch.
 - `upto=` gives every row from the top down to and including a marker, up to 1,000, so reload and Back keep the place. Bookmarks added since appear in their place, never as duplicates.
 
-### Search (Planned)
+### Search
 
-- **Search in the fixed bar:** a search control joins the Add button. On a phone it is a button that opens the search box, so the bar stays one line.
+A search is a Filter, `q=`, so it combines with the others and shows as a chip.
 
-Search uses an FTS5 index over title, description, URL, notes and Tags. FTS5 was confirmed working on `modernc.org/sqlite` on 2026-11-04.
+- **Index:** `bookmarks_fts`, an FTS5 table over title, description, URL, notes and Tags, whose rowid is the Bookmark's ID. It keeps its own copy of the text, because the Tags live in other tables. Triggers rebuild a Bookmark's row when it is added, edited or deleted, when it gains or loses a Tag, and when one of its Tags is renamed. A merge moves rows in `bookmark_tags`, so those triggers cover it. Migration 3 fills the index for existing Bookmarks, and the app never writes to it.
+- **Words:** the `unicode61` tokenizer, ignoring case and accents. Every word must match, and also matches as the start of a longer word, so "migra" finds "migrations". Each word is quoted, so FTS5 syntax such as `OR`, `-` or `NEAR` is searched for as text. Words with no letter or digit are dropped, and only the first 20 words count. The search is kept to 200 characters.
+- **Best match:** with no sort in the address, a search sorts by `match`, the BM25 rank, best first, with ties going to the newest. Title words count for most, then Tags, description, URL and notes. It shows only the best 100, with "Showing the best 100 of N" and a link to all of them, newest first. It has no "Show more" and no markers. The match sort is never remembered, and without a search it falls back to the remembered sort.
+- **Other sorts** keep the search and show every match, 50 at a time, like any list.
+- **The box:** in the fixed bar beside the Add button. Under 960px it is a button that opens the box in a panel below the bar. On the list page, typing updates the results after 500 ms: htmx fetches the whole page, swaps in its `<main>` and replaces the address. Hidden fields carry the view and Filters, but not the sort, so a new search starts by best match. On any other page the box is a plain form, so Enter opens `/bookmarks?q=`. Without JavaScript, Enter submits the form there too.
+- No highlighting of the matched words.
 
 ## Import and export (Planned)
 
@@ -218,7 +225,7 @@ Environment variables set the defaults, and flags override them for local use. A
 | `MAX_TAGS_PER_USER` | `-max-tags` | `0` | `0` is unlimited |
 
 - `-debug` shows stack traces in the browser. It is for local use and has no environment variable.
-- The app takes a file path rather than a DSN, and always adds the foreign key, WAL and busy timeout settings, so they can't be left out by accident.
+- The app takes a file path rather than a DSN, and always adds the foreign key, WAL, busy timeout and immediate transaction settings, so they can't be left out by accident.
 - `make run` passes `-max-users 0` and `-cookie-secure=false`.
 
 **Planned**, each arriving with the feature that uses it:

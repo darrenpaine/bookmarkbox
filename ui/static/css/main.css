@@ -240,7 +240,69 @@ nav a[aria-current="page"] {
     border-bottom: 1px solid var(--line);
 }
 
+/* Search: a box beside the Add button on wide screens. On narrower ones a
+   button beside it opens the box in a panel below the bar. */
+
+.search-wide {
+    width: 220px;
+}
+
+.search input {
+    min-height: 36px;
+    padding: 6px 10px;
+}
+
+.search-narrow {
+    display: none;
+}
+
+.search-narrow summary {
+    padding: 6px 10px;
+    color: var(--muted);
+    cursor: pointer;
+    list-style: none;
+}
+
+.search-narrow summary::-webkit-details-marker {
+    display: none;
+}
+
+.search-narrow[open] summary {
+    border-color: var(--ink);
+    color: var(--ink);
+}
+
+.search-panel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    padding: 10px max(var(--gutter), calc((100% - var(--width)) / 2));
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 6px 12px rgb(0 0 0 / 0.08);
+}
+
+@media (max-width: 959px) {
+    .search-wide {
+        display: none;
+    }
+
+    .search-narrow {
+        display: block;
+    }
+}
+
 @media (max-width: 719px) {
+    /* The search button sits beside the Add button, at the end of the bar */
+    .search-narrow {
+        margin-left: auto;
+    }
+
+    .search-narrow + .button {
+        margin-left: 0;
+    }
+
     .nav-wide,
     .wide-only {
         display: none;
@@ -735,6 +797,7 @@ input[type="text"],
 input[type="email"],
 input[type="password"],
 input[type="url"],
+input[type="search"],
 textarea {
     width: 100%;
     min-height: 40px;
@@ -1054,7 +1117,7 @@ textarea {
     font-size: 0.9rem;
 }
 
-.filter-domain {
+.filter-text {
     display: inline-flex;
     align-items: center;
     gap: 2px;
@@ -1089,6 +1152,13 @@ textarea {
 
 .cards .more {
     grid-column: 1 / -1;
+}
+
+.more-note p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+    text-align: center;
 }
 
 /* Cards */

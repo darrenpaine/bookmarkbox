@@ -44,6 +44,19 @@ func TestListStateURLs(t *testing.T) {
 	// Building links never changes the list they came from.
 	assert.Equal(t, len(s.Tags), 2)
 	assert.Equal(t, s.After, "marker")
+
+	// A search by best match: dropping the search, or every Filter, drops
+	// that sort too, so the remembered one applies.
+	s = listState{View: viewCompact, ListQuery: models.ListQuery{
+		Sort:   models.SortMatch,
+		Filter: models.Filter{Search: "go & sql", Favourite: true},
+	}}
+	assert.Equal(t, s.URL(), "/bookmarks?view=compact&sort=match&q=go+%26+sql&fav=1")
+	assert.Equal(t, s.WithSort(models.SortTitle), "/bookmarks?view=compact&sort=title&q=go+%26+sql&fav=1")
+	assert.Equal(t, s.WithoutSearch(), "/bookmarks?view=compact&fav=1")
+	assert.Equal(t, s.Cleared(), "/bookmarks?view=compact")
+	s.Sort = models.SortOldest
+	assert.Equal(t, s.WithoutSearch(), "/bookmarks?view=compact&sort=oldest&fav=1")
 }
 
 func TestListStateDescribe(t *testing.T) {
@@ -58,6 +71,9 @@ func TestListStateDescribe(t *testing.T) {
 		{models.Filter{Favourite: true, Tags: []string{"go"}}, 0, "No favourites tagged go"},
 		{models.Filter{ReadLater: true, Tags: []string{"a", "b", "c"}, Domain: "go.dev"}, 3,
 			"3 bookmarks to read later tagged a, b and c from go.dev"},
+		{models.Filter{Search: "sql"}, 0, "No bookmarks matching “sql”"},
+		{models.Filter{Search: "sql", Favourite: true, Tags: []string{"db"}}, 2,
+			"2 favourites matching “sql” tagged db"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.want, func(t *testing.T) {
@@ -165,6 +181,52 @@ func TestBookmarkList(t *testing.T) {
 		assert.StringContains(t, body, "<html")
 	})
 
+	t.Run("Search", func(t *testing.T) {
+		code, _, body := ts.get(t, "/bookmarks?q=++effective++go")
+		assert.Equal(t, code, http.StatusOK)
+		assert.StringContains(t, body, "<h1>1 bookmark matching “effective go”</h1>")
+		assert.StringContains(t, body, "<summary>Sort: Best match</summary>")
+		assert.StringContains(t, body, "aria-label='Remove search effective go'")
+		assert.StringContains(t, body, "href='/bookmarks?view=compact&amp;sort=title&amp;q=effective&#43;go'>A–Z</a>")
+		// The box shows the search, and updates the results as you type.
+		assert.StringContains(t, body, "value='effective go'")
+		assert.StringContains(t, body, "hx-get='/bookmarks' hx-trigger='input changed delay:500ms, search'")
+	})
+
+	t.Run("Search keeps the Filters", func(t *testing.T) {
+		_, _, body := ts.get(t, "/bookmarks?q=effective&tag=go&domain=go.dev")
+		assert.StringContains(t, body, "<h1>1 bookmark matching “effective” tagged go from go.dev</h1>")
+		assert.StringContains(t, body, "<input type='hidden' name='tag' value='go'>")
+		assert.StringContains(t, body, "<input type='hidden' name='domain' value='go.dev'>")
+	})
+
+	t.Run("Search with no matches", func(t *testing.T) {
+		_, _, body := ts.get(t, "/bookmarks?q=rust")
+		assert.StringContains(t, body, "<h1>No bookmarks matching “rust”</h1>")
+		assert.StringContains(t, body, "Clear filters</a>")
+	})
+
+	t.Run("An empty search is the plain list", func(t *testing.T) {
+		_, _, body := ts.get(t, "/bookmarks?q=+++")
+		assert.StringContains(t, body, "<h1>1 bookmark</h1>")
+		assert.StringContains(t, body, "<summary>Sort: Newest</summary>")
+	})
+
+	t.Run("Live search gets a whole page", func(t *testing.T) {
+		// htmx picks the <main> out of it.
+		code, _, body := ts.getHTMX(t, "/bookmarks?view=compact&q=effective")
+		assert.Equal(t, code, http.StatusOK)
+		assert.StringContains(t, body, "<main>")
+	})
+
+	t.Run("Search elsewhere opens the list", func(t *testing.T) {
+		_, _, body := ts.get(t, "/tags")
+		assert.StringContains(t, body, "<form class='search' action='/bookmarks' method='GET' role='search'>")
+		if strings.Contains(body, "hx-get='/bookmarks'") {
+			t.Error("searching from another page updates that page")
+		}
+	})
+
 	t.Run("Bad marker starts from the top", func(t *testing.T) {
 		code, header, _ := ts.get(t, "/bookmarks?view=cards&tag=go&upto="+mocks.BadMarker)
 		assert.Equal(t, code, http.StatusSeeOther)
@@ -188,6 +250,12 @@ func TestBookmarkListRemembers(t *testing.T) {
 	assert.StringContains(t, body, "<a href='/bookmarks?view=cards&amp;sort=title' aria-current='true'>Cards</a>")
 	assert.StringContains(t, body, "<summary>Sort: A–Z</summary>")
 	assert.StringContains(t, body, "<h1>1 bookmark</h1>")
+
+	// A search shows the best matches, without forgetting the remembered sort.
+	_, _, body = ts.get(t, "/bookmarks?q=go")
+	assert.StringContains(t, body, "<summary>Sort: Best match</summary>")
+	_, _, body = ts.get(t, "/bookmarks?sort=match")
+	assert.StringContains(t, body, "<summary>Sort: A–Z</summary>")
 
 	// Unknown values are ignored.
 	_, _, body = ts.get(t, "/bookmarks?view=nope&sort=nope")

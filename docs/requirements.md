@@ -56,6 +56,7 @@ A list shows the User's Bookmarks in one List view, narrowed by any combination 
 | Search | Matches on title, description, URL, notes and Tags |
 
 - Sort by newest, oldest, A-Z or domain. "Recent" is the newest-first sort.
+- A search finds Bookmarks containing every word typed, including words that start with it, and shows the best matches first. Choosing another sort shows every match in that order. Results update as you type on the list page.
 - Clicking a Tag or domain on a Bookmark filters the list by it.
 - Long lists load 50 at a time with "Show more". Deleting or changing Bookmarks already shown never makes it skip one.
 - The last List view and sort are remembered for the session. Filters are not.
@@ -130,7 +131,7 @@ A list shows the User's Bookmarks in one List view, narrowed by any combination 
 | 2 | **Model fixes and editing:** update Bookmarks, rename Tags, Duplicates by normalised URL, remove unused Tags, text limits, User, Bookmark and Tag limits | Done |
 | 3 | **Packaging:** environment config, `slog`, Dockerfile, compose, CI | Done |
 | 4 | **Restyle:** own CSS, dark mode, htmx actions | Done |
-| 5 | **List views and search,** with "Show more" for long lists: List views and Filters done, search next | In progress |
+| 5 | **List views and search,** with "Show more" for long lists | Done |
 | 6 | **Import and export,** with round-trip tests | Planned |
 | 7 | **Public demo** on Render; needs step 6 for its seed data | Planned |
 | 8 | **JSON API and tokens** | Planned |
