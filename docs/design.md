@@ -38,6 +38,7 @@ The schema starts in `migrations/00001_init.sql`. Tables: `users`, `sessions`, `
 - `bookmarks.domain` is the URL's lower-case host without `www.`, from `urls.Domain`, set on every save. Migration 2 is a Go migration so that existing Bookmarks get theirs from the same function. It is indexed with `user_id` for the domain Filter and sort.
 - `bookmarks_fts` is the search index, an FTS5 table from migration 3 with one row per Bookmark. See [Search](#search).
 - `imports` holds each User's uploaded bookmark file while they preview it, from migration 4. See [Import and export](#import-and-export).
+- `users.theme` is `system`, `light` or `dark`, from migration 5, with a `CHECK` constraint and `system` as the default. See [Theme](#theme).
 - Foreign keys need turning on for every connection. The default DSN does this with `_pragma=foreign_keys(1)`, along with WAL mode and a busy timeout.
 - Transactions begin with `BEGIN IMMEDIATE` (`_txlock=immediate`), taking the write lock at the start. In WAL mode, a transaction that has read can't wait to upgrade to a write if another connection wrote meanwhile, and fails at once with "database is locked". FTS5 reads its own settings the first time a connection uses the index, so without this, saving a Bookmark could fail under concurrent writes.
 
@@ -116,6 +117,7 @@ Form posts are limited to 1 MB in `decodePostForm`. File uploads in step 6 will 
 | `POST /tags/{id}/rename` | Owner | Rename or merge a Tag |
 | `GET /account/view` | Logged in | Account details, with links to import and export |
 | `GET, POST /account/password/update` | Logged in | Change password |
+| `POST /account/theme` | Logged in | Save the theme |
 | `GET, POST /account/import` | Logged in | Upload a bookmark file, then see its preview |
 | `POST /account/import/confirm` | Logged in | Import the uploaded file |
 | `POST /account/import/cancel` | Logged in | Discard the uploaded file |
@@ -124,7 +126,7 @@ Form posts are limited to 1 MB in `decodePostForm`. File uploads in step 6 will 
 
 ### Look
 
-- Own CSS in `ui/static/css/main.css`, with no framework. Colours are tokens on `:root`, redefined under `prefers-color-scheme: dark`, so dark mode follows the system setting with no toggle.
+- Own CSS in `ui/static/css/main.css`, with no framework. Colours are tokens on `:root`, redefined for dark mode. See [Theme](#theme).
 - **Type:** Instrument Sans for text, and IBM Plex Sans Condensed for headings and the lowercase `bookmarkbox` wordmark. Both are served from `ui/static/fonts` as Latin WOFF2 files, with their OFL licences, so no page loads anything from another site.
 - **Accent:** one deep red, `#B3263A` (`#D9586C` in dark mode), for the Favourite star, main buttons, focus outlines and the current nav link.
 - **Tag and icon colours:** a Tag's colour class (`c0` to `c7`) comes from an FNV hash of its name, so nothing is stored on a Tag and the CSP needs no inline styles. Letter icons use the same hash on the domain, and stand in for favicons until step 10.
@@ -132,6 +134,15 @@ Form posts are limited to 1 MB in `decodePostForm`. File uploads in step 6 will 
 - **List rows:** a title opens the website itself. Details opens the Bookmark's own page, with its notes and Tag editor.
 - **Caching:** embedded files have no modification time, so `/static` sets `Cache-Control` itself. Page links carry `?v=` with a hash of every static file and are cached for a year. The CSS names fonts without a version, so they are cached for a year too, and a changed font needs a new file name. The two fonts every page uses are preloaded, so text isn't drawn in a fallback font first.
 - **Layout:** a fixed bar holds the wordmark and the Add button. The main nav sits in the bar on wide screens and below it, scrolling away, on screens under 720px. Every control is at least 24px tall.
+- **Account on small screens:** under 720px, Account is the User's initial in a ring at the end of the bar, filled on Account pages. It is round because it stands for a person, where sites get square letter tiles. The nav below the bar keeps Bookmarks and Tags, and Log out is on the Account page, which has it at every width.
+
+### Theme
+
+- Each User chooses System, Light or Dark on the Account page, saved in `users.theme`. The `authenticate` middleware already looks the User up on every request, so the same query returns their name and theme for the page (`UserModel.Viewer`).
+- The page sets `<html data-theme='light'>` or `'dark'`, and none for System. The `color-scheme` meta matches: `light`, `dark`, or `light dark` for System and logged-out pages, so form controls and scrollbars agree.
+- The dark tokens are written twice in the CSS: under `:root[data-theme="dark"]`, and under `prefers-color-scheme: dark` for `:root:not([data-theme="light"])`. A test checks the two blocks match. Tag colours are tokens too (`--t0` to `--t7`), so they switch with the rest.
+- No JavaScript chooses the theme, so a page never shows the wrong one first.
+- The switch is a radio group styled like the List view switch. With htmx, choosing an option posts it at once and the response sends `HX-Refresh`, reloading the page in the new theme. Without JavaScript, a Save button inside `<noscript>` posts it. Only the three themes are accepted, and anything else gets 400.
 
 ### In-place actions
 

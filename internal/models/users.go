@@ -13,7 +13,8 @@ import (
 type UserModelInterface interface {
 	Insert(name, email, password string) error
 	Authenticate(email, password string) (int, error)
-	Exists(id int) (bool, error)
+	Viewer(id int) (*Viewer, error)
+	SetTheme(id int, theme string) error
 	Get(id int) (*User, error)
 	PasswordUpdate(id int, currentPassword, newPassword string) error
 	SignupOpen() (bool, error)
@@ -27,6 +28,25 @@ type User struct {
 	Email          string
 	HashedPassword []byte
 	Created        time.Time
+}
+
+// The themes a User can choose. ThemeSystem follows the device's setting.
+const (
+	ThemeSystem = "system"
+	ThemeLight  = "light"
+	ThemeDark   = "dark"
+)
+
+// ValidTheme reports whether theme is one a User can choose.
+func ValidTheme(theme string) bool {
+	return theme == ThemeSystem || theme == ThemeLight || theme == ThemeDark
+}
+
+// Viewer is what every page needs about the logged-in User.
+type Viewer struct {
+	ID    int
+	Name  string
+	Theme string
 }
 
 // UserModel type wraps a database connection pool. Signup closes at MaxUsers
@@ -110,12 +130,36 @@ func (m *UserModel) Authenticate(email, password string) (int, error) {
 	return id, nil
 }
 
-// Check if a user exists with a specific ID.
-func (m *UserModel) Exists(id int) (bool, error) {
-	var exists bool
-	stmt := "SELECT EXISTS(SELECT true FROM users WHERE id = ?)"
-	err := m.DB.QueryRow(stmt, id).Scan(&exists)
-	return exists, err
+// Viewer returns the details every page needs for a logged-in User, or
+// ErrNoRecord if the User no longer exists.
+func (m *UserModel) Viewer(id int) (*Viewer, error) {
+	v := &Viewer{ID: id}
+	err := m.DB.QueryRow("SELECT name, theme FROM users WHERE id = ?", id).Scan(&v.Name, &v.Theme)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNoRecord
+	}
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+// SetTheme saves a User's theme. It returns ErrInvalidTheme for a theme
+// they can't choose, and ErrNoRecord if the User doesn't exist.
+func (m *UserModel) SetTheme(id int, theme string) error {
+	if !ValidTheme(theme) {
+		return ErrInvalidTheme
+	}
+	res, err := m.DB.Exec("UPDATE users SET theme = ? WHERE id = ?", theme, id)
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return err
+	} else if n == 0 {
+		return ErrNoRecord
+	}
+	return nil
 }
 
 // Get user details for a given ID

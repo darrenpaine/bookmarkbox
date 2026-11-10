@@ -15,10 +15,29 @@
     <p><a class='button' href='/account/password/update'>Change password</a></p>
     {{end}}
 
+    <h2 id='appearance'>Appearance</h2>
+    <form class='theme-form' action='/account/theme' method='POST'
+        hx-post='/account/theme' hx-trigger='change'>
+        <fieldset>
+            <legend>Theme</legend>
+            <div class='switch'>
+                {{range themeChoices}}
+                <label><input type='radio' name='theme' value='{{.Value}}'{{if eq .Value $.Viewer.Theme}} checked{{end}}>{{.Name}}</label>
+                {{end}}
+            </div>
+        </fieldset>
+        <noscript><button class='button'>Save theme</button></noscript>
+    </form>
+    <p class='theme-help'>System follows your device's light or dark setting.</p>
+
     <h2>Your bookmarks</h2>
     <div class='form-actions'>
         <a class='button' href='/account/import'>Import from a browser</a>
         {{if .BookmarkCount}}<a class='button' href='/account/export' download>Export all ({{plural .BookmarkCount "bookmark" "bookmarks"}})</a>{{end}}
     </div>
+
+    <form class='account-logout' action='/user/logout' method='POST'>
+        <button class='button'>Log out</button>
+    </form>
 </div>
 {{end}}

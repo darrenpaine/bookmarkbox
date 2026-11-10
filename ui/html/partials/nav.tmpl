@@ -2,6 +2,8 @@
 <nav aria-label='Main'>
     <a href='/bookmarks'{{if eq .CurrentPath "/bookmarks"}} aria-current='page'{{end}}>Bookmarks</a>
     <a href='/tags'{{if eq .CurrentPath "/tags"}} aria-current='page'{{end}}>Tags</a>
+    {{/* On small screens these move: Account to the initial in the bar, and
+         Log out to the Account page. */}}
     <span class='nav-end'>
         <a href='/account/view'{{if hasPrefix .CurrentPath "/account/"}} aria-current='page'{{end}}>Account</a>
         <form action='/user/logout' method='POST'>

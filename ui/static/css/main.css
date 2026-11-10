@@ -39,6 +39,15 @@
     --success: #2E7D4F;
     --on-tag: #FFFFFF;
 
+    --t0: #1F6E8C;
+    --t1: #8A3B12;
+    --t2: #3D6B1E;
+    --t3: #6B3FA0;
+    --t4: #A1264B;
+    --t5: #0F7466;
+    --t6: #806200;
+    --t7: #3B4FB8;
+
     --body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
     --heading: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
     --radius: 8px;
@@ -46,8 +55,35 @@
     --width: 1000px;
 }
 
+/* Dark mode, chosen on the Account page or, for the System theme and logged-out
+   visitors, by the device. The two blocks must stay the same. */
+:root[data-theme="dark"] {
+    color-scheme: dark;
+
+    --bg: #111217;
+    --surface: #1A1C23;
+    --ink: #ECEDF1;
+    --muted: #9AA0AD;
+    --line: #2A2D36;
+    --field: #14151A;
+    --accent: #D9586C;
+    --on-accent: #111217;
+    --accent-soft: #3A1E25;
+    --success: #5DBB83;
+    --on-tag: #111217;
+
+    --t0: #7FC4DE;
+    --t1: #F0A276;
+    --t2: #A6D67E;
+    --t3: #C7A6F2;
+    --t4: #F28AA8;
+    --t5: #6FD3C2;
+    --t6: #E8C95A;
+    --t7: #9DAEFF;
+}
+
 @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
         --bg: #111217;
         --surface: #1A1C23;
         --ink: #ECEDF1;
@@ -59,29 +95,31 @@
         --accent-soft: #3A1E25;
         --success: #5DBB83;
         --on-tag: #111217;
+
+        --t0: #7FC4DE;
+        --t1: #F0A276;
+        --t2: #A6D67E;
+        --t3: #C7A6F2;
+        --t4: #F28AA8;
+        --t5: #6FD3C2;
+        --t6: #E8C95A;
+        --t7: #9DAEFF;
     }
 }
 
-/* Tag and letter icon colours, chosen from the name by the server */
-.c0 { --t: #1F6E8C; }
-.c1 { --t: #8A3B12; }
-.c2 { --t: #3D6B1E; }
-.c3 { --t: #6B3FA0; }
-.c4 { --t: #A1264B; }
-.c5 { --t: #0F7466; }
-.c6 { --t: #806200; }
-.c7 { --t: #3B4FB8; }
-
-@media (prefers-color-scheme: dark) {
-    .c0 { --t: #7FC4DE; }
-    .c1 { --t: #F0A276; }
-    .c2 { --t: #A6D67E; }
-    .c3 { --t: #C7A6F2; }
-    .c4 { --t: #F28AA8; }
-    .c5 { --t: #6FD3C2; }
-    .c6 { --t: #E8C95A; }
-    .c7 { --t: #9DAEFF; }
+:root[data-theme="light"] {
+    color-scheme: light;
 }
+
+/* Tag and letter icon colours, chosen from the name by the server */
+.c0 { --t: var(--t0); }
+.c1 { --t: var(--t1); }
+.c2 { --t: var(--t2); }
+.c3 { --t: var(--t3); }
+.c4 { --t: var(--t4); }
+.c5 { --t: var(--t5); }
+.c6 { --t: var(--t6); }
+.c7 { --t: var(--t7); }
 
 /* Base */
 
@@ -283,6 +321,32 @@ nav a[aria-current="page"] {
     box-shadow: 0 6px 12px rgb(0 0 0 / 0.08);
 }
 
+/* Account, on small screens: the User's initial in a ring. A circle for a
+   person, where sites get square letter tiles. Filled on Account pages. */
+
+.account-mark {
+    display: none;
+    place-items: center;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border: 1.5px solid var(--ink);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--ink);
+    font: 600 1rem/1 var(--heading);
+    text-decoration: none;
+}
+
+.account-mark:hover {
+    background: var(--accent-soft);
+}
+
+.account-mark[aria-current="page"] {
+    background: var(--ink);
+    color: var(--bg);
+}
+
 @media (max-width: 959px) {
     .search-wide {
         display: none;
@@ -310,6 +374,15 @@ nav a[aria-current="page"] {
 
     .nav-narrow {
         display: block;
+    }
+
+    .account-mark {
+        display: inline-grid;
+    }
+
+    /* Account is the initial in the bar, and Log out is on the Account page */
+    .nav-narrow .nav-end {
+        display: none;
     }
 
     .bar {
@@ -1016,6 +1089,7 @@ textarea {
 }
 
 .switch a,
+.switch label,
 .chip-toggle,
 .menu summary {
     display: inline-flex;
@@ -1031,11 +1105,13 @@ textarea {
 }
 
 .switch a:hover,
+.switch label:hover,
 .chip-toggle:hover,
 .menu summary:hover {
     color: var(--ink);
 }
 
+.switch label:has(:checked),
 .switch a[aria-current="true"] {
     background: var(--ink);
     color: var(--bg);
@@ -1375,4 +1451,55 @@ textarea {
 .empty .import-hint {
     margin: 16px 0 0;
     color: var(--muted);
+}
+
+/* Account page: the theme switch. Each option is a radio button, hidden and
+   shown as a segment of the switch, saved as soon as it's chosen. */
+
+.theme-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+}
+
+.theme-form fieldset {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0;
+    border: 0;
+}
+
+.theme-form legend {
+    float: left;
+    padding: 0;
+    color: var(--muted);
+}
+
+.theme-form label {
+    cursor: pointer;
+}
+
+.theme-form input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.theme-form label:has(:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.theme-help {
+    margin: 8px 0 20px;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.account-logout {
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
 }

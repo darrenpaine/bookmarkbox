@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/darrenpaine/bookmarkbox/internal/models"
 )
 
 func secureHeaders(next http.Handler) http.Handler {
@@ -75,15 +78,16 @@ func (app *application) authenticate(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		// Is that user still on the system?
-		exists, err := app.users.Exists(id)
-		if err != nil {
+		// Is that user still on the system? The same lookup gives every
+		// page their name and theme.
+		viewer, err := app.users.Viewer(id)
+		if err != nil && !errors.Is(err, models.ErrNoRecord) {
 			app.serverError(w, err)
 			return
 		}
-		// If so, add the flag to the context
-		if exists {
+		if viewer != nil {
 			ctx := context.WithValue(r.Context(), isAuthenticatedContextKey, true)
+			ctx = context.WithValue(ctx, viewerContextKey, viewer)
 			r = r.WithContext(ctx)
 		}
 		// Call the next handler in the chain.

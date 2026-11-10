@@ -1,10 +1,10 @@
 {{define "base"}}
 <!doctype html>
-<html lang='en'>
+<html lang='en'{{with .Viewer}}{{if ne .Theme "system"}} data-theme='{{.Theme}}'{{end}}{{end}}>
     <head>
         <meta charset='utf-8'>
         <meta name='viewport' content='width=device-width, initial-scale=1'>
-        <meta name='color-scheme' content='light dark'>
+        <meta name='color-scheme' content='{{colorScheme .Viewer}}'>
         <!-- htmx must not add inline styles or run inline code: the CSP forbids both.
              It keeps no copies of pages for Back, so Bookmarks never sit in the browser's storage. -->
         <meta name='htmx-config'
@@ -46,6 +46,11 @@
             </details>
             <a class='button primary' href='/bookmarks/new'>Add<span
                     class='wide-only'>&nbsp;bookmark</span></a>
+            <!-- On small screens, the Account link is the User's initial -->
+            <a class='account-mark' href='/account/view'{{if hasPrefix .CurrentPath "/account/"}} aria-current='page'{{end}}>
+                <span aria-hidden='true'>{{with .Viewer}}{{initial .Name}}{{end}}</span>
+                <span class='visually-hidden'>Account</span>
+            </a>
             {{else}}
             <div class='bar-end'>
                 {{if .SignupOpen}}<a class='button' href='/user/signup'>Sign up</a>{{end}}

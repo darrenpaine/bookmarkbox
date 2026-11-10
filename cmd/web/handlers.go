@@ -750,3 +750,28 @@ func (app *application) userPasswordPost(w http.ResponseWriter, r *http.Request)
 
 	http.Redirect(w, r, "/account/view", http.StatusSeeOther)
 }
+
+// Form to choose a theme on the Account page.
+type themeForm struct {
+	Theme string `form:"theme"`
+}
+
+// Save the User's theme - POST /account/theme. With htmx it saves as soon as
+// an option is chosen, and the whole page reloads in the new theme.
+func (app *application) themePost(w http.ResponseWriter, r *http.Request) {
+	var form themeForm
+	if err := app.decodePostForm(w, r, &form); err != nil || !models.ValidTheme(form.Theme) {
+		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+	if err := app.users.SetTheme(app.authenticatedUserID(r), form.Theme); err != nil {
+		app.serverError(w, err)
+		return
+	}
+	app.flash(r, "Theme saved.")
+	if isHTMX(r) {
+		w.Header().Set("HX-Refresh", "true")
+		return
+	}
+	http.Redirect(w, r, "/account/view", http.StatusSeeOther)
+}

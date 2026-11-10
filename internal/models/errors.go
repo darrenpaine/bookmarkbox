@@ -21,6 +21,8 @@ var (
 	ErrUserLimit     = errors.New("models: user limit reached")
 	ErrBookmarkLimit = errors.New("models: bookmark limit reached")
 	ErrTagLimit      = errors.New("models: tag limit reached")
+	// Not one of the themes a User can choose
+	ErrInvalidTheme = errors.New("models: invalid theme")
 )
 
 // overLimit reports whether a count query inside a transaction exceeds limit;
