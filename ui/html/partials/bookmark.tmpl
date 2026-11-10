@@ -106,8 +106,10 @@
     <form class='tag-add' action='/bookmarks/{{.ID}}/tags' method='POST'
         hx-post='/bookmarks/{{.ID}}/tags' hx-target='#tag-editor' hx-swap='outerHTML'>
         <label class='visually-hidden' for='new-tag'>Add a tag</label>
-        <input id='new-tag' type='text' name='name' placeholder='Add a tag' autocomplete='off'
-            maxlength='50'{{if $.FocusTagInput}} autofocus{{end}}>
+        <div class='suggest'>
+            <input id='new-tag' type='text' name='name' placeholder='Add a tag' autocomplete='off'
+                maxlength='50' data-tag-suggest='one'{{if $.FocusTagInput}} autofocus{{end}}>
+        </div>
         <button class='button'>Add</button>
     </form>
     {{end}}

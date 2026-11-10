@@ -23,7 +23,9 @@
         <label for='tags'>Tags</label>
         <p class='hint' id='tags-hint'>Separate tags with commas.</p>
         {{with .Form.FieldErrors.tags}}<p class='field-error' id='tags-error'>{{.}}</p>{{end}}
-        <input id='tags' type='text' name='tags' value='{{.Form.Tags}}' placeholder='go, databases' aria-describedby='tags-hint{{with .Form.FieldErrors.tags}} tags-error{{end}}'{{with .Form.FieldErrors.tags}} aria-invalid='true'{{end}}>
+        <div class='suggest'>
+            <input id='tags' type='text' name='tags' value='{{.Form.Tags}}' placeholder='go, databases' autocomplete='off' data-tag-suggest='list' aria-describedby='tags-hint{{with .Form.FieldErrors.tags}} tags-error{{end}}'{{with .Form.FieldErrors.tags}} aria-invalid='true'{{end}}>
+        </div>
     </div>
     <div class='field'>
         <label for='notes'>Notes</label>
