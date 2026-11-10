@@ -14,6 +14,7 @@ These cost little while the app is small, and are expensive to retrofit:
 6. **Make background work a queue, not a goroutine.** Step 10's metadata fetch should record its jobs in the database, so that they survive a restart and can later move to separate workers.
 7. **Share favicons between Users.** A favicon belongs to a site, not to a User, so step 10 should store each one once in a shared table keyed by host, rather than a copy on every Bookmark. Many Users saving the same site then need one fetch and one copy. Each User still sees only the favicons of their own Bookmarks. With a database per User, the shared table sits in the central database or in object storage behind a cache.
 8. **Write the threat model before the public demo (step 7).** That is the first time strangers can reach the app. See [Hardening](#hardening-and-devsecops).
+9. **Write migrations that the previous release can live with.** Add before removing: a new column is added in one release and the old one dropped in a later one, so an upgrade can be rolled back by running the previous image. See [Upgrades and migrations](#upgrades-and-migrations).
 
 ## Sign in with Google or Microsoft
 
@@ -55,10 +56,33 @@ A database per User suits this app well, because no feature joins across Users. 
 Program changes that every option needs at this size:
 
 - Sessions, rate limits and pending imports in a shared store, such as the central database or Redis.
-- Several app servers behind a load balancer, with no downtime for upgrades.
+- Several app servers behind a load balancer, with no downtime for upgrades. See [Upgrades and migrations](#upgrades-and-migrations).
 - Background jobs run by separate workers.
 - Imports written in batches, so that they don't hold the write lock for long.
 - An admin view, and audit logs of security events.
+
+## Upgrades and migrations
+
+**Today.** An upgrade replaces the container. The app finishes requests in progress for up to 8 seconds, the new version runs any pending migrations at start-up, and then serves again. Logged-in Users stay logged in, because sessions are kept in the database, and a pending import survives too. A few seconds of downtime is fine for a household. A request sent during those seconds fails, and a page that was open still posts its form afterwards, because its CSRF token lives in the session. The self-hosting docs say to back up first. There is no way to undo a migration except restoring that backup.
+
+**What can go wrong for logged-in Users:**
+- A migration that rewrites a large table, or rebuilds the search index, can take minutes on a big database, and the app serves nothing until it finishes.
+- A change to what the session holds can make old sessions unreadable. Either keep the format compatible, or log everyone out on purpose with a message saying why.
+- A page loaded before the upgrade may post a form the new version no longer accepts. The app should answer with a clear message, not a 500.
+- Browsers may keep old CSS and JavaScript. Asset URLs should carry the version, so a new release is always fetched fresh.
+
+**Planned downtime,** when a migration is long or risky:
+- A notice is set ahead of time, for example "BookmarkBox will be down for about 10 minutes from 22:00 UTC on Saturday". It shows as a banner on every page, and as a flash message on login, from a day or so before.
+- During the work, every request gets a maintenance page with status 503 and a `Retry-After` header, and `/ping` says so, so the proxy and monitoring don't treat it as a failure. A read-only mode, where Users can browse but not save, is a gentler option for long backfills.
+- The notice is cleared automatically once the new version is running.
+- Self-hosters see what an upgrade will do from the release notes, which flag any migration that is long, or that can't be undone without a backup. The app could also back the database up itself, with `VACUUM INTO`, before it runs any pending migration.
+
+**Without downtime, at scale:**
+- Old and new versions run side by side during a rolling deploy, so every migration must work with both. That means **expand, then contract**. Add the new column or table, deploy code that writes both and reads the new, backfill in batches as a background job, and only remove the old one in a later release. Never rename or drop in the same release that stops using something.
+- Migrations run once, as a separate deploy step, not by every app server at start-up.
+- With a SQLite file per User, each file migrates when it is next opened. Different Users are then on different schema versions for a while, which the code must expect. A background job moves along the files that nobody opens.
+- Each migration is tested against a copy of production-sized data, to know how long it takes before it is run for real.
+- The running version is shown in `/ping` and in the page footer, so it is clear which release each User is on.
 
 ## Confidentiality
 

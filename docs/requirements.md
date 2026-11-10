@@ -109,6 +109,7 @@ Options and early preparations for these are in [scaling.md](scaling.md).
 - Scale to 1,000 and then 1,000,000 Users. This may mean Postgres, or a central database for Users with a SQLite file per User.
 - Keep Bookmarks confidential at scale, for example by encrypting each User's data with its own key.
 - A written threat model, with security checks in CI, before the public demo.
+- Upgrades that don't surprise logged-in Users: notice of planned downtime as a banner and on login, a maintenance page during it, and upgrades without downtime at scale.
 
 ## Self-hosting
 
