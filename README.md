@@ -23,6 +23,7 @@ Based on the 'SnippetBox' project from ["Let's Go" by Alex Edwards](https://lets
 - List views (compact, cards and by tag) with filters for tags, domain, favourites and read later, four sorts, and "Show more" paging that never skips a row
 - Search across titles, descriptions, URLs, notes and tags (SQLite FTS5), with results that update as you type
 - Import the bookmark files from Chrome, Edge, Firefox and Brave, with a preview first and folders turned into tags; export them all in the same format
+- Choose a light, dark or system theme on the Account page; on phones, the Account link is your initial in the top bar
 
 ### Next steps
 - Live demo on Render, with seeded data that resets regularly

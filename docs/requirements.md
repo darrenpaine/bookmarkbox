@@ -32,11 +32,13 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 
 ### Look and feel
 
-- Own visual identity, replacing the book's CSS: logo or wordmark, app favicon, own colours, dark mode and a dense layout.
+- Own visual identity, replacing the book's CSS: logo or wordmark, app favicon, own colours and a dense layout.
+- A theme of light, dark or system, chosen on the Account page and kept with the User's account. System follows the device, and so do pages for logged-out visitors.
 - Favicons beside links, coloured Tag chips and a star control.
 - In-place actions without a full page reload: set Favourite or Read later, add or remove a Tag, delete after a confirmation, live search. Every action still works without JavaScript.
 - A proper empty state, such as "No bookmarks yet", with a link to import from a browser.
-- Works on a phone: the Add button stays on screen while scrolling, and every control is large enough to tap.
+- Works on a phone: the Add button stays on screen while scrolling, and every control is large enough to tap. The Account link is the User's initial in the top bar.
+- A Bookmark's own page has a Back button beside Edit and Delete. It returns to the list last looked at, with its Filters and search, and deleting the Bookmark there returns to the same list.
 
 ### List views and search
 
@@ -149,7 +151,7 @@ Options and early preparations for these are in [scaling.md](scaling.md).
 | 4 | **Restyle:** own CSS, dark mode, htmx actions | Done |
 | 5 | **List views and search,** with "Show more" for long lists | Done |
 | 6 | **Import and export,** with round-trip tests | Done |
-| 6a | **Theme switch:** dark, light or system on the Account page, and an Account icon in the nav on small screens | Planned |
+| 6a | **Theme switch:** dark, light or system on the Account page, and an Account icon in the nav on small screens | Done |
 | 6b | **Tag autocomplete** on the add and edit forms | Planned |
 | 7 | **Public demo** on Render; needs step 6 for its seed data | Planned |
 | 8 | **JSON API and tokens** | Planned |

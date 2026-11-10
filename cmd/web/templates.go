@@ -31,6 +31,8 @@ type templateData struct {
 	IsAuthenticated bool // Has an authenticated ID
 	SignupOpen      bool // Set for logged-out visitors, to show the Signup link
 	User            *models.User
+	Viewer          *models.Viewer // the logged-in User's name and theme, or nil
+	BackURL         string         // where Back on the details page goes
 	BookmarkCount   int            // the User's Bookmarks, on the Account page
 	Import          *importPreview // an uploaded file waiting to be imported
 }
@@ -47,15 +49,17 @@ func humanDate(t time.Time) string {
 // essentially a string-keyed map which acts as a lookup between the names of our
 // custom template functions and the functions themselves.
 var functions = template.FuncMap{
-	"humanDate":   humanDate,
-	"shortDate":   func(t time.Time) string { return shortDate(t, time.Now()) },
-	"colour":      colour,
-	"initial":     initial,
-	"listItem":    func(b *models.Bookmark, p *listPage) bookmarkItem { return bookmarkItem{b, p.Here, &p.State} },
-	"detailsItem": func(b *models.Bookmark) bookmarkItem { return bookmarkItem{b, fmt.Sprintf("/bookmarks/%d", b.ID), nil} },
-	"plural":      plural,
-	"hasPrefix":   strings.HasPrefix,
-	"static":      func(path string) string { return "/static/" + path + "?v=" + staticVersion },
+	"humanDate":    humanDate,
+	"shortDate":    func(t time.Time) string { return shortDate(t, time.Now()) },
+	"colour":       colour,
+	"initial":      initial,
+	"listItem":     func(b *models.Bookmark, p *listPage) bookmarkItem { return bookmarkItem{b, p.Here, &p.State} },
+	"detailsItem":  func(b *models.Bookmark) bookmarkItem { return bookmarkItem{b, fmt.Sprintf("/bookmarks/%d", b.ID), nil} },
+	"plural":       plural,
+	"hasPrefix":    strings.HasPrefix,
+	"colorScheme":  colorScheme,
+	"themeChoices": func() []themeChoice { return themeChoices },
+	"static":       func(path string) string { return "/static/" + path + "?v=" + staticVersion },
 }
 
 // staticVersion is a hash of every file under ui/static. Page links to static
@@ -135,6 +139,24 @@ func initial(name string) string {
 		return strings.ToUpper(string(r))
 	}
 	return "?"
+}
+
+// themeChoice is one option of the theme switch on the Account page.
+type themeChoice struct{ Value, Name string }
+
+var themeChoices = []themeChoice{
+	{models.ThemeSystem, "System"},
+	{models.ThemeLight, "Light"},
+	{models.ThemeDark, "Dark"},
+}
+
+// colorScheme is the color-scheme a page declares for the viewer's theme:
+// both for logged-out visitors and the System theme, so the device decides.
+func colorScheme(v *models.Viewer) string {
+	if v == nil || v.Theme == models.ThemeSystem {
+		return "light dark"
+	}
+	return v.Theme
 }
 
 func newTemplateCache() (map[string]*template.Template, error) {

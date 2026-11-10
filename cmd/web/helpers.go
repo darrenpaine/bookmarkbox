@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/darrenpaine/bookmarkbox/internal/models"
 	"github.com/go-playground/form/v4"
 )
 
@@ -113,6 +114,7 @@ func (app *application) newTemplateData(r *http.Request) *templateData {
 		CurrentPath:     r.URL.Path,
 		Flash:           app.sessionManager.PopString(r.Context(), "flash"),
 		IsAuthenticated: app.isAuthenticated(r),
+		Viewer:          viewer(r),
 	}
 	if message := app.sessionManager.PopString(r.Context(), "flashError"); message != "" {
 		data.Flash = message
@@ -159,6 +161,12 @@ func (app *application) decodePostForm(w http.ResponseWriter, r *http.Request, d
 }
 
 // Return true if the request is from an authenticated user, else false
+// viewer returns the logged-in User's name and theme, or nil when logged out.
+func viewer(r *http.Request) *models.Viewer {
+	v, _ := r.Context().Value(viewerContextKey).(*models.Viewer)
+	return v
+}
+
 func (app *application) isAuthenticated(r *http.Request) bool {
 	isAuthenticated, ok := r.Context().Value(isAuthenticatedContextKey).(bool)
 	if !ok {

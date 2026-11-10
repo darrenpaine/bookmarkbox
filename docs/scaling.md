@@ -63,7 +63,7 @@ Program changes that every option needs at this size:
 
 ## Upgrades and migrations
 
-**Today.** An upgrade replaces the container. The app finishes requests in progress for up to 8 seconds, the new version runs any pending migrations at start-up, and then serves again. Logged-in Users stay logged in, because sessions are kept in the database, and a pending import survives too. A few seconds of downtime is fine for a household. A request sent during those seconds fails, and a page that was open still posts its form afterwards, because its CSRF token lives in the session. The self-hosting docs say to back up first. There is no way to undo a migration except restoring that backup.
+**Today.** An upgrade replaces the container. The app finishes requests in progress for up to 8 seconds, the new version runs any pending migrations at start-up, and then serves again. Logged-in Users stay logged in, because sessions are kept in the database, and a pending import survives too. A few seconds of downtime is fine for a household. A request sent during those seconds fails. A page that was open still posts its form afterwards, because cross-site requests are blocked by checking the request's origin, not a token kept in the session. The self-hosting docs say to back up first. There is no way to undo a migration except restoring that backup.
 
 **What can go wrong for logged-in Users:**
 - A migration that rewrites a large table, or rebuilds the search index, can take minutes on a big database, and the app serves nothing until it finishes.

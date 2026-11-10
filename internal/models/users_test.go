@@ -7,45 +7,48 @@ import (
 	"github.com/darrenpaine/bookmarkbox/internal/assert"
 )
 
-func TestUserModelExists(t *testing.T) {
-	// Long tests - skip if -short is selected
+func TestUserModelViewer(t *testing.T) {
 	if testing.Short() {
 		t.Skip("models: skipping integration DB tests")
 	}
-	// Set up a suite of table-driven tests and expected results.
-	tests := []struct {
-		name   string
-		userID int
-		want   bool
-	}{
-		{
-			name:   "Valid ID",
-			userID: 1,
-			want:   true,
-		},
-		{
-			name:   "Zero ID",
-			userID: 0,
-			want:   false,
-		},
-		{
-			name:   "Non-existent ID",
-			userID: 3,
-			want:   false,
-		},
+	db := newTestDB(t)
+	m := UserModel{DB: db}
+
+	v, err := m.Viewer(1)
+	assert.NilError(t, err)
+	assert.Equal(t, *v, Viewer{ID: 1, Name: "Alice Jones", Theme: ThemeSystem})
+
+	for _, id := range []int{0, 3} {
+		_, err = m.Viewer(id)
+		assert.Equal(t, errors.Is(err, ErrNoRecord), true)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// New DB for each test
-			db := newTestDB(t)
-			m := UserModel{DB: db}
-			// Call the UserModel.Exists() method and check that the return
-			// value and error match the expected values for the sub-test.
-			exists, err := m.Exists(tt.userID)
-			assert.Equal(t, exists, tt.want)
-			assert.NilError(t, err)
-		})
+}
+
+func TestUserModelSetTheme(t *testing.T) {
+	if testing.Short() {
+		t.Skip("models: skipping integration DB tests")
 	}
+	db := newTestDB(t)
+	m := UserModel{DB: db}
+
+	for _, theme := range []string{ThemeDark, ThemeLight, ThemeSystem} {
+		assert.NilError(t, m.SetTheme(1, theme))
+		v, err := m.Viewer(1)
+		assert.NilError(t, err)
+		assert.Equal(t, v.Theme, theme)
+	}
+	// Only Alice changed.
+	v, err := m.Viewer(2)
+	assert.NilError(t, err)
+	assert.Equal(t, v.Theme, ThemeSystem)
+
+	assert.Equal(t, errors.Is(m.SetTheme(1, "sepia"), ErrInvalidTheme), true)
+	assert.Equal(t, errors.Is(m.SetTheme(1, ""), ErrInvalidTheme), true)
+	assert.Equal(t, errors.Is(m.SetTheme(3, ThemeDark), ErrNoRecord), true)
+
+	// The database refuses other values too, whatever the code does.
+	_, err = db.Exec("UPDATE users SET theme = 'sepia' WHERE id = 1")
+	assert.Equal(t, err != nil, true)
 }
 
 func TestUserModelInsertDuplicateEmail(t *testing.T) {

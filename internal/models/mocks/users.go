@@ -7,9 +7,11 @@ import (
 // FullEmail is rejected by Insert as if another signup took the last place.
 const FullEmail = "full@example.com"
 
-// SignupClosed makes SignupOpen report that signup is full.
+// SignupClosed makes SignupOpen report that signup is full. Theme is the
+// theme of User 1, Alice, and SetTheme changes it.
 type UserModel struct {
 	SignupClosed bool
+	Theme        string
 }
 
 func (m *UserModel) SignupOpen() (bool, error) {
@@ -32,14 +34,28 @@ func (m *UserModel) Authenticate(email, password string) (int, error) {
 	}
 	return 0, models.ErrInvalidCredentials
 }
-func (m *UserModel) Exists(id int) (bool, error) {
-	switch id {
-	case 1:
-		return true, nil
-	default:
-		return false, nil
+func (m *UserModel) Viewer(id int) (*models.Viewer, error) {
+	if id != 1 {
+		return nil, models.ErrNoRecord
 	}
+	theme := m.Theme
+	if theme == "" {
+		theme = models.ThemeSystem
+	}
+	return &models.Viewer{ID: 1, Name: "Alice Jones", Theme: theme}, nil
 }
+
+func (m *UserModel) SetTheme(id int, theme string) error {
+	if !models.ValidTheme(theme) {
+		return models.ErrInvalidTheme
+	}
+	if id != 1 {
+		return models.ErrNoRecord
+	}
+	m.Theme = theme
+	return nil
+}
+
 func (m *UserModel) Get(id int) (*models.User, error) {
 	return &models.User{}, nil
 }
