@@ -1,6 +1,6 @@
 # BookmarkBox design
 
-How BookmarkBox works and is planned to work. Requirements are in [requirements.md](requirements.md), and the reasons behind the major decisions are in [adr/](adr/). Sections marked **Planned** are not built yet; the rest describes the code as it stands.
+How BookmarkBox works and is planned to work. Requirements are in [requirements.md](requirements.md), the reasons behind the major decisions are in [adr/](adr/), and options for running it at a much larger scale are in [scaling.md](scaling.md). Sections marked **Planned** are not built yet; the rest describes the code as it stands.
 
 ## Architecture
 
@@ -228,6 +228,7 @@ Routes sit under `/api/v1`: create a Bookmark, list Tags, "is this URL already s
 ## Background metadata (Planned)
 
 - Fetch title, description and favicon in a goroutine after saving, with timeouts and `context` cancellation.
+- Favicons are stored once per host, in a table shared by all Users, not on each Bookmark. A site many Users save is fetched once, and refreshed now and then. Favicons are public and belong to the site, so sharing them reveals nothing about a User, provided each User is only shown the favicons of their own Bookmarks. See [scaling.md](scaling.md).
 - Reject private and loopback addresses **after** DNS lookup, including on redirects, unless `FETCH_ALLOW_PRIVATE=true`. Demo mode forces this off.
 
 ## Configuration

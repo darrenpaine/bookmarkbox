@@ -29,6 +29,7 @@ Based on the 'SnippetBox' project from ["Let's Go" by Alex Edwards](https://lets
 - JSON API with personal API tokens
 - Browser extension to save the current page, plus a right-click menu option
 - Fetch page titles, descriptions and favicons in the background
+- Later, for wider use: sign in with Google or Microsoft, password reset, and scaling to many users (see [scaling](docs/scaling.md))
 
 See [requirements](docs/requirements.md), [design](docs/design.md) and the [decision records](docs/adr/).
 
