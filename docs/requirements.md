@@ -100,6 +100,16 @@ A list shows the User's Bookmarks in one List view, narrowed by any combination 
 - Bulk changes: select several Bookmarks, then delete them, add or remove a Tag, or edit them together. How this should work is still to be explored.
 - Continuous backup with Litestream.
 
+### Wider use (Possible later)
+
+Options and early preparations for these are in [scaling.md](scaling.md).
+
+- Sign up and log in with a Google or Microsoft account, alongside passwords. Self-hosters can turn it on with their own client ID.
+- Reset a forgotten password by email, with a command-line reset for self-hosters without email.
+- Scale to 1,000 and then 1,000,000 Users. This may mean Postgres, or a central database for Users with a SQLite file per User.
+- Keep Bookmarks confidential at scale, for example by encrypting each User's data with its own key.
+- A written threat model, with security checks in CI, before the public demo.
+
 ## Self-hosting
 
 - Runs with Docker Compose as one service, with data on a named volume. No separate database server.
