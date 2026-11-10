@@ -20,10 +20,12 @@ const (
 
 var listViews = []string{viewCompact, viewCards, viewTags}
 
-// Session keys for the remembered List view and sort.
+// Session keys for the remembered List view and sort, and the address of the
+// last list looked at.
 const (
 	sessionListView = "listView"
 	sessionListSort = "listSort"
+	sessionListURL  = "listURL"
 )
 
 // The most Tags one list can filter by. More would only make a slow query.
@@ -314,6 +316,7 @@ func (app *application) bookmarkList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	lp := &listPage{State: state, Here: r.URL.RequestURI(), ListPage: page}
+	app.rememberList(r, state)
 
 	if isHTMX(r) && state.After != "" {
 		// Reloading the new address shows every row so far.
@@ -360,4 +363,22 @@ func (app *application) bookmarkList(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
 	data.List = lp
 	app.render(w, http.StatusOK, "list.tmpl", data)
+}
+
+// rememberList keeps the address of the list the User is looking at, without
+// its "Show more" marker, so Back on a Bookmark's page returns to it.
+func (app *application) rememberList(r *http.Request, state listState) {
+	if state.After != "" {
+		return // "Show more" adds rows to the list already remembered
+	}
+	url := state.clean().URL()
+	if app.sessionManager.GetString(r.Context(), sessionListURL) != url {
+		app.sessionManager.Put(r.Context(), sessionListURL, url)
+	}
+}
+
+// backURL is where Back on a Bookmark's page goes: the list last looked at,
+// or all Bookmarks.
+func (app *application) backURL(r *http.Request) string {
+	return safeNext(app.sessionManager.GetString(r.Context(), sessionListURL), "/bookmarks")
 }

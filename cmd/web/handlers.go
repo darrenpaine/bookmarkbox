@@ -110,6 +110,7 @@ func (app *application) bookmarkView(w http.ResponseWriter, r *http.Request) {
 	}
 	data := app.newTemplateData(r)
 	data.Bookmark = bookmark
+	data.BackURL = app.backURL(r)
 	app.render(w, http.StatusOK, "view.tmpl", data)
 }
 

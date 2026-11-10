@@ -32,6 +32,7 @@ type templateData struct {
 	SignupOpen      bool // Set for logged-out visitors, to show the Signup link
 	User            *models.User
 	Viewer          *models.Viewer // the logged-in User's name and theme, or nil
+	BackURL         string         // where Back on the details page goes
 	BookmarkCount   int            // the User's Bookmarks, on the Account page
 	Import          *importPreview // an uploaded file waiting to be imported
 }

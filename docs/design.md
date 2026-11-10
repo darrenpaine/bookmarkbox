@@ -135,6 +135,7 @@ Form posts are limited to 1 MB in `decodePostForm`. File uploads in step 6 will 
 - **Caching:** embedded files have no modification time, so `/static` sets `Cache-Control` itself. Page links carry `?v=` with a hash of every static file and are cached for a year. The CSS names fonts without a version, so they are cached for a year too, and a changed font needs a new file name. The two fonts every page uses are preloaded, so text isn't drawn in a fallback font first.
 - **Layout:** a fixed bar holds the wordmark and the Add button. The main nav sits in the bar on wide screens and below it, scrolling away, on screens under 720px. Every control is at least 24px tall.
 - **Account on small screens:** under 720px, Account is the User's initial in a ring at the end of the bar, filled on Account pages. It is round because it stands for a person, where sites get square letter tiles. The nav below the bar keeps Bookmarks and Tags, and Log out is on the Account page, which has it at every width.
+- **Back:** a Bookmark's page has Back beside Edit and Delete. Each list page, whole or by htmx, saves its address in the session without its "Show more" marker, and Back goes there, or to `/bookmarks`. Deleting a Bookmark from its page goes to the same place. The address is checked with `safeNext`.
 
 ### Theme
 

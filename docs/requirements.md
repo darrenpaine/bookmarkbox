@@ -38,6 +38,7 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 - In-place actions without a full page reload: set Favourite or Read later, add or remove a Tag, delete after a confirmation, live search. Every action still works without JavaScript.
 - A proper empty state, such as "No bookmarks yet", with a link to import from a browser.
 - Works on a phone: the Add button stays on screen while scrolling, and every control is large enough to tap. The Account link is the User's initial in the top bar.
+- A Bookmark's own page has a Back button beside Edit and Delete. It returns to the list last looked at, with its Filters and search, and deleting the Bookmark there returns to the same list.
 
 ### List views and search
 

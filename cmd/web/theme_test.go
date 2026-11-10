@@ -108,6 +108,52 @@ func TestAccountMark(t *testing.T) {
 	assert.StringContains(t, body, "<form class='account-logout' action='/user/logout' method='POST'>")
 }
 
+// Back on a Bookmark's page returns to the list last looked at, and so does
+// deleting it there.
+func TestBookmarkBack(t *testing.T) {
+	app := newTestApplication(t)
+	ts := newTestServer(t, app.routes())
+	defer ts.Close()
+	ts.login(t)
+
+	back := func(t *testing.T, want string) {
+		t.Helper()
+		_, _, body := ts.get(t, "/bookmarks/1")
+		assert.StringContains(t, body, "<a class='button' href='"+want+"'>Back</a>")
+		assert.StringContains(t, body, "<input type='hidden' name='next' value='"+want+"'>")
+	}
+
+	t.Run("No list yet", func(t *testing.T) {
+		back(t, "/bookmarks")
+	})
+
+	t.Run("The last list, with its Filters and search", func(t *testing.T) {
+		ts.get(t, "/bookmarks?view=cards&sort=title&tag=go&fav=1")
+		back(t, "/bookmarks?view=cards&amp;sort=title&amp;tag=go&amp;fav=1")
+
+		// A live search, by htmx. Searches sort by best match.
+		ts.getHTMX(t, "/bookmarks?view=compact&q=effective")
+		back(t, "/bookmarks?view=compact&amp;sort=match&amp;q=effective")
+	})
+
+	t.Run("Show more keeps the list it adds to", func(t *testing.T) {
+		ts.getHTMX(t, "/bookmarks?view=tags&sort=oldest&after=start")
+		back(t, "/bookmarks?view=compact&amp;sort=match&amp;q=effective")
+	})
+
+	t.Run("A reloaded longer list starts from the top", func(t *testing.T) {
+		// The sort is the one remembered from the request above.
+		ts.get(t, "/bookmarks?view=compact&upto=start")
+		back(t, "/bookmarks?view=compact&amp;sort=oldest")
+	})
+
+	t.Run("Deleting returns to the list", func(t *testing.T) {
+		code, header, _ := ts.postForm(t, "/bookmarks/1/delete", url.Values{"next": {"/bookmarks?view=compact"}})
+		assert.Equal(t, code, http.StatusSeeOther)
+		assert.Equal(t, header.Get("Location"), "/bookmarks?view=compact")
+	})
+}
+
 // The dark colours are written twice: for a chosen Dark theme, and for the
 // System theme on a dark device. The two copies must match.
 func TestDarkThemeBlocksMatch(t *testing.T) {

@@ -18,10 +18,11 @@
     <div class='bookmark-actions'>
         {{template "readlater" $item}}
         <span class='saved'>Saved {{humanDate .Created}}</span>
+        <a class='button' href='{{$.BackURL}}'>Back</a>
         <a class='button' href='/bookmarks/{{.ID}}/edit'>Edit</a>
         <form class='inline' action='/bookmarks/{{.ID}}/delete' method='POST'
             hx-post='/bookmarks/{{.ID}}/delete' hx-confirm='Delete “{{.Title}}”?'>
-            <input type='hidden' name='next' value='/'>
+            <input type='hidden' name='next' value='{{$.BackURL}}'>
             <button class='button danger'>Delete</button>
         </form>
     </div>
