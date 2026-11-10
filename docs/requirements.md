@@ -25,6 +25,7 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 - A Bookmark has a URL, title, description, notes, Tags and a favicon.
 - A Bookmark can have many Tags. Tag names are trimmed and lower-cased.
 - A Tag exists only while at least one Bookmark uses it. It is removed automatically when its last Bookmark is deleted or stops using it, so there is no separate delete action for Tags.
+- The Tags field on the add and edit forms suggests the User's existing Tags as they type.
 - A User can rename a Tag, which updates every Bookmark using it. Renaming to a Tag the User already has merges the two, after a confirmation.
 - An Owner cannot have Duplicates. Two Users can save the same URL.
 - The form, import and API all apply the same definition of a Duplicate.
@@ -34,7 +35,7 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 - Own visual identity, replacing the book's CSS: logo or wordmark, app favicon, own colours, dark mode and a dense layout.
 - Favicons beside links, coloured Tag chips and a star control.
 - In-place actions without a full page reload: set Favourite or Read later, add or remove a Tag, delete after a confirmation, live search. Every action still works without JavaScript.
-- A proper empty state, such as "No bookmarks yet. Import from your browser?"
+- A proper empty state, such as "No bookmarks yet", with a link to import from a browser.
 - Works on a phone: the Add button stays on screen while scrolling, and every control is large enough to tap.
 
 ### List views and search
@@ -65,7 +66,9 @@ A list shows the User's Bookmarks in one List view, narrowed by any combination 
 ### Import and export
 
 - Import the bookmark file exported by Chrome, Edge, Firefox or Brave.
-- Each Folder in a Bookmark's path becomes a flat Tag: `Programming/Go` gives `programming` and `go`. Browser root Folders such as "Bookmarks bar" do not become Tags.
+- Each Folder in a Bookmark's path becomes a flat Tag: `Programming/Go` gives `programming` and `go`. Root Folders such as "Bookmarks bar" do not become Tags.
+- A new Bookmark directly in a Root Folder, with no Folder of its own, is tagged Unfiled. The preview says how many.
+- A Bookmark already saved keeps everything, and only gains any new Tags.
 - The original date added is kept.
 - A preview comes before saving, such as "312 bookmarks, 18 duplicates, 24 folders -> tags. Import?"
 - An import is all or nothing. If it would pass the User's Bookmark or Tag limit, the preview says so and nothing is saved.
@@ -93,6 +96,8 @@ A list shows the User's Bookmarks in one List view, narrowed by any combination 
 
 - Suggest Tags for a new Bookmark from its title and description, using the User's existing Tags. It must be possible to switch this off.
 - Saved views.
+- Delete account, under a "Dangerous actions" heading on the Account page.
+- Bulk changes: select several Bookmarks, then delete them, add or remove a Tag, or edit them together. How this should work is still to be explored.
 - Continuous backup with Litestream.
 
 ## Self-hosting
@@ -132,7 +137,9 @@ A list shows the User's Bookmarks in one List view, narrowed by any combination 
 | 3 | **Packaging:** environment config, `slog`, Dockerfile, compose, CI | Done |
 | 4 | **Restyle:** own CSS, dark mode, htmx actions | Done |
 | 5 | **List views and search,** with "Show more" for long lists | Done |
-| 6 | **Import and export,** with round-trip tests | Planned |
+| 6 | **Import and export,** with round-trip tests | Done |
+| 6a | **Theme switch:** dark, light or system on the Account page, and an Account icon in the nav on small screens | Planned |
+| 6b | **Tag autocomplete** on the add and edit forms | Planned |
 | 7 | **Public demo** on Render; needs step 6 for its seed data | Planned |
 | 8 | **JSON API and tokens** | Planned |
 | 9 | **Browser extension:** popup, then right-click, then direct import | Planned |

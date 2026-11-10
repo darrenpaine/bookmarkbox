@@ -3,6 +3,7 @@
 <div class='narrow'>
     <h1>Your account</h1>
     {{with .User}}
+    <h2>Account details</h2>
     <dl class='details'>
         <dt>Name</dt>
         <dd>{{.Name}}</dd>
@@ -13,5 +14,11 @@
     </dl>
     <p><a class='button' href='/account/password/update'>Change password</a></p>
     {{end}}
+
+    <h2>Your bookmarks</h2>
+    <div class='form-actions'>
+        <a class='button' href='/account/import'>Import from a browser</a>
+        {{if .BookmarkCount}}<a class='button' href='/account/export' download>Export all ({{plural .BookmarkCount "bookmark" "bookmarks"}})</a>{{end}}
+    </div>
 </div>
 {{end}}

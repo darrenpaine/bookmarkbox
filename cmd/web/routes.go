@@ -51,6 +51,11 @@ func (app *application) routes() http.Handler {
 		group_router.Get("/account/view", app.userAccountView)
 		group_router.Get("/account/password/update", app.userPasswordShowForm)
 		group_router.Post("/account/password/update", app.userPasswordPost)
+		group_router.Get("/account/import", app.importShow)
+		group_router.Post("/account/import", app.importUploadPost)
+		group_router.Post("/account/import/confirm", app.importConfirmPost)
+		group_router.Post("/account/import/cancel", app.importCancelPost)
+		group_router.Get("/account/export", app.exportGet)
 	})
 
 	app.router.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

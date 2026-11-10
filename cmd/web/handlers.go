@@ -679,8 +679,15 @@ func (app *application) userAccountView(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	count, err := app.bookmarks.Count(userID)
+	if err != nil {
+		app.serverError(w, err)
+		return
+	}
+
 	data := app.newTemplateData(r)
 	data.User = user
+	data.BookmarkCount = count
 	app.render(w, http.StatusOK, "account.tmpl", data)
 }
 

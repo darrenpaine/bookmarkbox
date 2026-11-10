@@ -40,6 +40,7 @@ func newTestApplication(t *testing.T) *application {
 		bookmarks:      &mocks.BookmarkModel{}, // Use the mock.
 		tags:           &mocks.TagModel{},
 		users:          &mocks.UserModel{}, // Use the mock.
+		imports:        &mocks.ImportModel{},
 		templateCache:  templateCache,
 		formDecoder:    formDecoder,
 		sessionManager: sessionManager,

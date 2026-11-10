@@ -37,6 +37,7 @@ The schema starts in `migrations/00001_init.sql`. Tables: `users`, `sessions`, `
 - Deletes cascade from `users` to `bookmarks` and `tags`, and from `bookmarks` and `tags` to `bookmark_tags`.
 - `bookmarks.domain` is the URL's lower-case host without `www.`, from `urls.Domain`, set on every save. Migration 2 is a Go migration so that existing Bookmarks get theirs from the same function. It is indexed with `user_id` for the domain Filter and sort.
 - `bookmarks_fts` is the search index, an FTS5 table from migration 3 with one row per Bookmark. See [Search](#search).
+- `imports` holds each User's uploaded bookmark file while they preview it, from migration 4. See [Import and export](#import-and-export).
 - Foreign keys need turning on for every connection. The default DSN does this with `_pragma=foreign_keys(1)`, along with WAL mode and a busy timeout.
 - Transactions begin with `BEGIN IMMEDIATE` (`_txlock=immediate`), taking the write lock at the start. In WAL mode, a transaction that has read can't wait to upgrade to a write if another connection wrote meanwhile, and fails at once with "database is locked". FTS5 reads its own settings the first time a connection uses the index, so without this, saving a Bookmark could fail under concurrent writes.
 
@@ -113,8 +114,12 @@ Form posts are limited to 1 MB in `decodePostForm`. File uploads in step 6 will 
 | `POST /bookmarks/{id}/delete` | Owner | Delete a Bookmark |
 | `GET /tags` | Logged in | List the User's Tags |
 | `POST /tags/{id}/rename` | Owner | Rename or merge a Tag |
-| `GET /account/view` | Logged in | Account details |
+| `GET /account/view` | Logged in | Account details, with links to import and export |
 | `GET, POST /account/password/update` | Logged in | Change password |
+| `GET, POST /account/import` | Logged in | Upload a bookmark file, then see its preview |
+| `POST /account/import/confirm` | Logged in | Import the uploaded file |
+| `POST /account/import/cancel` | Logged in | Discard the uploaded file |
+| `GET /account/export` | Logged in | Download every Bookmark as `bookmarkbox-YYYY-MM-DD.html` |
 | `GET /ping` | Public | Health check, without a session |
 
 ### Look
@@ -172,24 +177,38 @@ A search is a Filter, `q=`, so it combines with the others and shows as a chip.
 - **The box:** in the fixed bar beside the Add button. Under 960px it is a button that opens the box in a panel below the bar. On the list page, typing updates the results after 500 ms: htmx fetches the whole page, swaps in its `<main>` and replaces the address. Hidden fields carry the view and Filters, but not the sort, so a new search starts by best match. On any other page the box is a plain form, so Enter opens `/bookmarks?q=`. Without JavaScript, Enter submits the form there too.
 - No highlighting of the matched words.
 
-## Import and export (Planned)
+## Import and export
 
-All four browsers export the Netscape bookmark file (`bookmarks.html`), so one importer covers them.
+All four browsers export the Netscape bookmark file (`bookmarks.html`), so one importer covers them. `internal/bookmarkfile` reads and writes the format and knows nothing else; `internal/models/imports.go` decides what the links become.
 
-**Import**
+**Reading the file**
 
-- Parse with `golang.org/x/net/html`, tracking the Folder path: `<H3>` Folders inside nested `<DL>` lists, and `<A HREF ADD_DATE ICON>` links.
-- Each Folder name becomes a Tag ([ADR 4](adr/0004-folders-become-flat-tags.md)). Browser root Folders are skipped, and commas in names are replaced.
-- `ADD_DATE` becomes `created_at`.
-- Duplicates are found by normalised URL.
-- A `TAGS` attribute is read if present, which also lets exports come back in.
-- The preview runs before any write. Imports over the Bookmark or Tag limit are rejected there, and the API bulk import rejects them in the same way.
+- `bookmarkfile.Parse` uses the `golang.org/x/net/html` tokenizer rather than the tree parser, which would rearrange the file's unclosed `<DT>` and `<p>` tags. It tracks the Folder path through nested `<DL>` lists: each `<H3>` is a Folder, each `<A>` a link, and a `<DD>` after a link is its description. Parsing is lenient, as browsers' is.
+- **Root Folders** don't become Tags. Chrome-family exports mark only the bookmarks bar (`PERSONAL_TOOLBAR_FOLDER`) and write the contents of "Other bookmarks" loose at the top. Firefox marks its toolbar and "Other Bookmarks" (`UNFILED_BOOKMARKS_FOLDER`) and writes the menu's contents at the top. So a Folder is a Root Folder if it has either attribute, or if it is at the top level with a browser's English name for one, such as "Bookmarks bar" or "Other favorites".
+- `ADD_DATE` is in seconds. A number too large for seconds is taken as milliseconds or microseconds and scaled down. `ICON` and `LAST_MODIFIED` are ignored.
+- BookmarkBox's own attributes are read when present: `TAGS`, `NOTES`, `FAVOURITE` and `READ_LATER`.
+
+**Preparing it** (`models.PrepareImport`)
+
+- Each Folder in a link's path, and each name in its `TAGS`, becomes a Tag ([ADR 4](adr/0004-folders-become-flat-tags.md)). Commas become spaces and names are cut to 50 characters.
+- A link with no Folder and no `TAGS` attribute is **unfiled**: if it is new, it gets the Tag `unfiled`. A Duplicate never gets it.
+- Links that aren't `http` or `https`, or are over 2,000 characters, are skipped. An empty title becomes the URL. Text over its limit is cut, and a title is trimmed after cutting. A link with no date gets the time of the import.
+- Links repeated in the file (by normalised URL) are merged into one, with every Tag and the earliest date.
+
+**Preview and import**
+
+- Uploading keeps the file, as uploaded, in `imports`: one per User, replaced by the next upload, and gone after an hour. The page then redirects to the preview, so refreshing it doesn't upload again.
+- The preview and the import both read the file again and work out the same plan from the User's Bookmarks and Tags as they are: new, Duplicates, Duplicates gaining Tags, unfiled, and the counts afterwards. The preview writes nothing.
+- An import over the Bookmark or Tag limit is shown as such on the preview, which has no Import button, and refused by the import. The rule matches a single save: an import that creates no Bookmark, or no Tag, passes that limit.
+- The import is one transaction. It plans inside it, holding the write lock, so the limits can't be passed by a request arriving meanwhile. New Bookmarks are inserted with prepared statements, and Tag IDs are cached. 20,000 links take about two seconds.
+- Uploads are limited to 20 MB and 20,000 links. Those requests, the import and the export get two minutes in place of the server's usual time limits, through `http.ResponseController`.
 
 **Export**
 
-- A flat list of links with `TAGS="go,work"`, `ADD_DATE`, and extra attributes for Favourite and Read later.
-- The round-trip test runs import, export and compare.
+- A flat list of links, oldest first, with `ADD_DATE`, `TAGS` (written even when empty, so a re-import never makes a Bookmark unfiled), `NOTES`, `FAVOURITE` and `READ_LATER`, and the description in a `<DD>`.
+- Line breaks are written as character references, and so is whitespace at either end of a title or description, because the parser trims the whitespace that is layout. So the round trip is exact: the tests import, export and compare every field, with the date to the second. The favicon isn't exported; the metadata fetch will find it again.
 - BookmarkBox's own attributes are for its round trip. Nothing relies on a browser keeping them: a Mozilla bug report describes Firefox ignoring `TAGS` on import, and Chromium's behaviour is unconfirmed.
+- The API's bulk import (Planned) will apply the same preparation and limits.
 
 ## JSON API (Planned)
 
@@ -284,6 +303,7 @@ Images aren't published. Compose builds from the repository.
 
 - Handler tests in `cmd/web` use the model mocks and a test server.
 - Model tests in `internal/models` run against a temporary SQLite file with real migrations and `testdata/setup.sql`. They need no set-up.
+- `internal/bookmarkfile/testdata` holds real exports from Brave and Firefox, trimmed, with every link, title and personal Folder name replaced. Their layout, attributes, dates and Root Folders are as the browsers wrote them.
 - Run everything with `make test`. `make smoke` tests the real image, and needs Docker.
 
 ## AI Tag suggestions (Possible later)
