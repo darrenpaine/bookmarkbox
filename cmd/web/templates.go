@@ -31,6 +31,8 @@ type templateData struct {
 	IsAuthenticated bool // Has an authenticated ID
 	SignupOpen      bool // Set for logged-out visitors, to show the Signup link
 	User            *models.User
+	BookmarkCount   int            // the User's Bookmarks, on the Account page
+	Import          *importPreview // an uploaded file waiting to be imported
 }
 
 // humanDate() gives a nice time/date format - UTC, or blank for unset time.
@@ -51,6 +53,8 @@ var functions = template.FuncMap{
 	"initial":     initial,
 	"listItem":    func(b *models.Bookmark, p *listPage) bookmarkItem { return bookmarkItem{b, p.Here, &p.State} },
 	"detailsItem": func(b *models.Bookmark) bookmarkItem { return bookmarkItem{b, fmt.Sprintf("/bookmarks/%d", b.ID), nil} },
+	"plural":      plural,
+	"hasPrefix":   strings.HasPrefix,
 	"static":      func(path string) string { return "/static/" + path + "?v=" + staticVersion },
 }
 

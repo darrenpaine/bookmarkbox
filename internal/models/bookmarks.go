@@ -25,6 +25,10 @@ type BookmarkModelInterface interface {
 	AddTag(userID, id int, name string) error
 	RemoveTag(userID, id int, name string) error
 	Delete(userID, id int) error
+	All(userID int) ([]*Bookmark, error)
+	Count(userID int) (int, error)
+	PreviewImport(userID int, items []ImportItem) (*ImportSummary, error)
+	Import(userID int, items []ImportItem) (*ImportSummary, error)
 }
 
 // Maximum lengths, in characters. Shared so that the forms, and later the
@@ -273,6 +277,36 @@ func (m *BookmarkModel) Get(userID, id int) (*Bookmark, error) {
 		return nil, err
 	}
 	return b, nil
+}
+
+// All returns every one of the user's bookmarks, oldest first, for an export.
+func (m *BookmarkModel) All(userID int) ([]*Bookmark, error) {
+	rows, err := m.DB.Query(`SELECT `+bookmarkColumns+` FROM bookmarks b
+	                         WHERE b.user_id = ? ORDER BY b.created_at, b.id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	bookmarks := []*Bookmark{}
+	for rows.Next() {
+		b, err := scanBookmark(rows)
+		if err != nil {
+			return nil, err
+		}
+		bookmarks = append(bookmarks, b)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return bookmarks, nil
+}
+
+// Count returns how many bookmarks the user has.
+func (m *BookmarkModel) Count(userID int) (int, error) {
+	var n int
+	err := m.DB.QueryRow(`SELECT count(*) FROM bookmarks WHERE user_id = ?`, userID).Scan(&n)
+	return n, err
 }
 
 // ToggleFavourite flips the favourite star on one of the user's bookmarks.

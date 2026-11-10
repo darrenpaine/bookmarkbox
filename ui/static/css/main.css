@@ -874,6 +874,7 @@ textarea {
 
 .form-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 8px;
 }
@@ -957,6 +958,10 @@ textarea {
 }
 
 /* Account details */
+
+.narrow h1 + h2 {
+    margin-top: 0;
+}
 
 .details {
     display: grid;
@@ -1332,4 +1337,42 @@ textarea {
         border-bottom: 0;
         border-right: 1px solid var(--line);
     }
+}
+
+/* Import */
+
+.import-intro {
+    margin-bottom: 16px;
+}
+
+.import-summary,
+.import-help {
+    margin: 0 0 16px;
+}
+
+.import-help {
+    padding-left: 1.25em;
+    list-style: disc;
+}
+
+.import-summary {
+    padding: 14px 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.import-summary li + li,
+.import-help li + li {
+    margin-top: 6px;
+}
+
+.import-note {
+    margin-bottom: 16px;
+}
+
+/* Under an empty state's button */
+.empty .import-hint {
+    margin: 16px 0 0;
+    color: var(--muted);
 }

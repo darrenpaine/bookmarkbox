@@ -34,7 +34,7 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 - Own visual identity, replacing the book's CSS: logo or wordmark, app favicon, own colours, dark mode and a dense layout.
 - Favicons beside links, coloured Tag chips and a star control.
 - In-place actions without a full page reload: set Favourite or Read later, add or remove a Tag, delete after a confirmation, live search. Every action still works without JavaScript.
-- A proper empty state, such as "No bookmarks yet. Import from your browser?"
+- A proper empty state, such as "No bookmarks yet", with a link to import from a browser.
 - Works on a phone: the Add button stays on screen while scrolling, and every control is large enough to tap.
 
 ### List views and search
@@ -65,7 +65,9 @@ A list shows the User's Bookmarks in one List view, narrowed by any combination 
 ### Import and export
 
 - Import the bookmark file exported by Chrome, Edge, Firefox or Brave.
-- Each Folder in a Bookmark's path becomes a flat Tag: `Programming/Go` gives `programming` and `go`. Browser root Folders such as "Bookmarks bar" do not become Tags.
+- Each Folder in a Bookmark's path becomes a flat Tag: `Programming/Go` gives `programming` and `go`. Root Folders such as "Bookmarks bar" do not become Tags.
+- A new Bookmark directly in a Root Folder, with no Folder of its own, is tagged Unfiled. The preview says how many.
+- A Bookmark already saved keeps everything, and only gains any new Tags.
 - The original date added is kept.
 - A preview comes before saving, such as "312 bookmarks, 18 duplicates, 24 folders -> tags. Import?"
 - An import is all or nothing. If it would pass the User's Bookmark or Tag limit, the preview says so and nothing is saved.
@@ -132,7 +134,7 @@ A list shows the User's Bookmarks in one List view, narrowed by any combination 
 | 3 | **Packaging:** environment config, `slog`, Dockerfile, compose, CI | Done |
 | 4 | **Restyle:** own CSS, dark mode, htmx actions | Done |
 | 5 | **List views and search,** with "Show more" for long lists | Done |
-| 6 | **Import and export,** with round-trip tests | Planned |
+| 6 | **Import and export,** with round-trip tests | Done |
 | 7 | **Public demo** on Render; needs step 6 for its seed data | Planned |
 | 8 | **JSON API and tokens** | Planned |
 | 9 | **Browser extension:** popup, then right-click, then direct import | Planned |

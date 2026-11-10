@@ -31,6 +31,7 @@ type application struct {
 	bookmarks      models.BookmarkModelInterface
 	tags           models.TagModelInterface
 	users          models.UserModelInterface
+	imports        models.ImportModelInterface
 	templateCache  map[string]*template.Template
 	router         *chi.Mux
 	formDecoder    *form.Decoder
@@ -85,6 +86,7 @@ func run(cfg config, logger *slog.Logger) error {
 	app := &application{
 		logger:         logger,
 		bookmarks:      &models.BookmarkModel{DB: db, MaxBookmarks: cfg.maxBookmarks, MaxTags: cfg.maxTags},
+		imports:        &models.ImportModel{DB: db},
 		tags:           &models.TagModel{DB: db},
 		users:          &models.UserModel{DB: db, MaxUsers: cfg.maxUsers},
 		templateCache:  templateCache,

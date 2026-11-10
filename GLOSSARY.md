@@ -54,3 +54,9 @@ _Avoid_: Smart folder, preset
 
 **Folder**:
 A container in a browser's own bookmarks. Folders exist only in browsers and never inside BookmarkBox; on import they become Tags.
+
+**Root Folder**:
+One of a browser's own top-level Folders, such as "Bookmarks bar" or "Other bookmarks". A Root Folder never becomes a Tag.
+
+**Unfiled**:
+The Tag given on import to a new Bookmark that sat directly in a Root Folder, with no other Folder to become its Tag.

@@ -1,0 +1,68 @@
+{{define "title"}}Import bookmarks{{end}}
+{{define "main"}}
+<div class='narrow'>
+    <h1>Import bookmarks</h1>
+    {{with .Import}}
+    <p>From <strong>{{.Filename}}</strong>:</p>
+    {{with .Summary}}
+    <ul class='import-summary'>
+        <li><strong>{{plural .New "new bookmark" "new bookmarks"}}</strong></li>
+        {{if .Duplicates}}<li>{{plural .Duplicates "is" "are"}} already saved. {{if .Updated}}{{plural .Updated "gains" "gain"}} tags from this file, and nothing{{else}}Nothing{{end}} else changes.</li>{{end}}
+        {{if .Tags}}<li>{{plural .Tags "tag" "tags"}} from folders</li>{{end}}
+        {{if .Unfiled}}<li>{{plural .Unfiled "bookmark isn't" "bookmarks aren't"}} in any folder, and will be tagged <strong>unfiled</strong></li>{{end}}
+    {{end}}
+        {{if .Merged}}<li>{{plural .Merged "link appears" "links appear"}} more than once, and will be saved once</li>{{end}}
+        {{if .Skipped}}<li>{{plural .Skipped "link is" "links are"}} skipped: not web addresses, or too long</li>{{end}}
+    </ul>
+    {{with .Summary}}
+    {{if .OverBookmarkLimit}}
+    <p class='form-error'>This import would take you to {{.BookmarksAfter}} bookmarks, past your limit of {{.MaxBookmarks}}, so it can't be saved.</p>
+    {{else if .OverTagLimit}}
+    <p class='form-error'>This import would take you to {{.TagsAfter}} tags, past your limit of {{.MaxTags}}, so it can't be saved.</p>
+    {{else if .ChangesNothing}}
+    <p class='import-note'>Every bookmark in this file is already saved, with its tags, so there is nothing to import.</p>
+    {{end}}
+    {{end}}
+    <div class='form-actions'>
+        {{with .Summary}}{{if not (or .OverBookmarkLimit .OverTagLimit .ChangesNothing)}}
+        <form action='/account/import/confirm' method='POST'>
+            <button class='button primary'>{{if .New}}Import {{plural .New "bookmark" "bookmarks"}}{{else}}Add the tags{{end}}</button>
+        </form>
+        {{end}}{{end}}
+        <form action='/account/import/cancel' method='POST'>
+            <button class='button'>Cancel</button>
+        </form>
+    </div>
+    {{else}}
+    <p class='import-intro'>Export your bookmarks from your browser as an HTML file, then choose it here. You'll see what it holds before anything is saved.</p>
+    <form action='/account/import' method='POST' enctype='multipart/form-data'>
+        {{range .Form.NonFieldErrors}}
+        <p class='form-error'>{{.}}</p>
+        {{end}}
+        <div class='field'>
+            <label for='file'>Bookmark file</label>
+            {{with .Form.FieldErrors.file}}<p class='field-error'>{{.}}</p>{{end}}
+            <input id='file' type='file' name='file' accept='.html,.htm,text/html' required>
+        </div>
+        <div class='form-actions'>
+            <button class='button primary'>Preview</button>
+            <a class='button' href='/account/view'>Cancel</a>
+        </div>
+    </form>
+
+    <h2>Exporting from your browser</h2>
+    <ul class='import-help'>
+        <li><strong>Chrome and Brave:</strong> open the bookmark manager (Ctrl+Shift+O), then ⋮ › Export bookmarks.</li>
+        <li><strong>Edge:</strong> open Favourites (Ctrl+Shift+O), then ⋯ › Export favourites.</li>
+        <li><strong>Firefox:</strong> open the Library (Ctrl+Shift+O), then Import and Backup › Export Bookmarks to HTML.</li>
+    </ul>
+    <h2>What happens to your bookmarks</h2>
+    <ul class='import-help'>
+        <li>Each folder becomes a tag: a bookmark in Programming › Go is tagged <strong>programming</strong> and <strong>go</strong>. The browser's own folders, such as the bookmarks bar, don't.</li>
+        <li>Bookmarks that aren't in any folder are tagged <strong>unfiled</strong>.</li>
+        <li>Each bookmark keeps the date it was added.</li>
+        <li>Bookmarks you've already saved keep everything, and only gain any new tags.</li>
+    </ul>
+    {{end}}
+</div>
+{{end}}

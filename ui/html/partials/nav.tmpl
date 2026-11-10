@@ -3,7 +3,7 @@
     <a href='/bookmarks'{{if eq .CurrentPath "/bookmarks"}} aria-current='page'{{end}}>Bookmarks</a>
     <a href='/tags'{{if eq .CurrentPath "/tags"}} aria-current='page'{{end}}>Tags</a>
     <span class='nav-end'>
-        <a href='/account/view'{{if eq .CurrentPath "/account/view"}} aria-current='page'{{end}}>Account</a>
+        <a href='/account/view'{{if hasPrefix .CurrentPath "/account/"}} aria-current='page'{{end}}>Account</a>
         <form action='/user/logout' method='POST'>
             <button class='link'>Log out</button>
         </form>
@@ -28,4 +28,9 @@
     {{with .Domain}}<input type='hidden' name='domain' value='{{.}}'>{{end}}
     {{end}}{{end}}
 </form>
+{{end}}
+
+{{/* Under an empty state, while the User has no Bookmarks at all */}}
+{{define "importhint"}}
+<p class='import-hint'>Have bookmarks in your browser? <a href='/account/import'>Import them from your account.</a></p>
 {{end}}

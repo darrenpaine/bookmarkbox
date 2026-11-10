@@ -146,3 +146,47 @@ func (m *BookmarkModel) Delete(userID, id int) error {
 	_, err := m.Get(userID, id)
 	return err
 }
+
+func (m *BookmarkModel) All(userID int) ([]*models.Bookmark, error) {
+	if userID == mockBookmark.UserID {
+		return []*models.Bookmark{mockBookmark}, nil
+	}
+	return []*models.Bookmark{}, nil
+}
+
+func (m *BookmarkModel) Count(userID int) (int, error) {
+	if userID == mockBookmark.UserID {
+		return 1, nil
+	}
+	return 0, nil
+}
+
+// PreviewImport counts the mock Bookmark's URL as a Duplicate for user 1. An
+// item titled OverBookmarkLimitTitle passes a Bookmark limit of 1.
+func (m *BookmarkModel) PreviewImport(userID int, items []models.ImportItem) (*models.ImportSummary, error) {
+	s := &models.ImportSummary{}
+	for _, item := range items {
+		if item.URL == mockBookmark.URL && userID == mockBookmark.UserID {
+			s.Duplicates++
+			continue
+		}
+		s.New++
+		if item.Unfiled {
+			s.Unfiled++
+		}
+		if item.Title == OverBookmarkLimitTitle {
+			s.MaxBookmarks = 1
+		}
+	}
+	existing, _ := m.Count(userID)
+	s.BookmarksAfter = existing + s.New
+	return s, nil
+}
+
+func (m *BookmarkModel) Import(userID int, items []models.ImportItem) (*models.ImportSummary, error) {
+	s, _ := m.PreviewImport(userID, items)
+	if s.OverBookmarkLimit() {
+		return nil, models.ErrBookmarkLimit
+	}
+	return s, nil
+}
