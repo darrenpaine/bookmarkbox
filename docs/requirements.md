@@ -25,6 +25,7 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 - A Bookmark has a URL, title, description, notes, Tags and a favicon.
 - A Bookmark can have many Tags. Tag names are trimmed and lower-cased.
 - A Tag exists only while at least one Bookmark uses it. It is removed automatically when its last Bookmark is deleted or stops using it, so there is no separate delete action for Tags.
+- The Tags field on the add and edit forms suggests the User's existing Tags as they type.
 - A User can rename a Tag, which updates every Bookmark using it. Renaming to a Tag the User already has merges the two, after a confirmation.
 - An Owner cannot have Duplicates. Two Users can save the same URL.
 - The form, import and API all apply the same definition of a Duplicate.
@@ -95,6 +96,8 @@ A list shows the User's Bookmarks in one List view, narrowed by any combination 
 
 - Suggest Tags for a new Bookmark from its title and description, using the User's existing Tags. It must be possible to switch this off.
 - Saved views.
+- Delete account, under a "Dangerous actions" heading on the Account page.
+- Bulk changes: select several Bookmarks, then delete them, add or remove a Tag, or edit them together. How this should work is still to be explored.
 - Continuous backup with Litestream.
 
 ## Self-hosting
@@ -135,6 +138,8 @@ A list shows the User's Bookmarks in one List view, narrowed by any combination 
 | 4 | **Restyle:** own CSS, dark mode, htmx actions | Done |
 | 5 | **List views and search,** with "Show more" for long lists | Done |
 | 6 | **Import and export,** with round-trip tests | Done |
+| 6a | **Theme switch:** dark, light or system on the Account page, and an Account icon in the nav on small screens | Planned |
+| 6b | **Tag autocomplete** on the add and edit forms | Planned |
 | 7 | **Public demo** on Render; needs step 6 for its seed data | Planned |
 | 8 | **JSON API and tokens** | Planned |
 | 9 | **Browser extension:** popup, then right-click, then direct import | Planned |
