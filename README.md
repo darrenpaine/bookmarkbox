@@ -25,6 +25,7 @@ Based on the 'SnippetBox' project from ["Let's Go" by Alex Edwards](https://lets
 - Import the bookmark files from Chrome, Edge, Firefox and Brave, with a preview first and folders turned into tags; export them all in the same format
 - Choose a light, dark or system theme on the Account page; on phones, the Account link is your initial in the top bar
 - Tag autocomplete: the tag fields suggest your existing tags as you type, most used first
+- Rate limits on login, signup and password change, with the client IP read from a trusted reverse proxy
 
 ### Next steps
 - Live demo on Render, with seeded data that resets regularly

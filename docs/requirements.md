@@ -137,7 +137,7 @@ Options and early preparations for these are in [scaling.md](scaling.md).
 - When signup is full, the Signup link is hidden and the signup page says it is closed.
 - Text fields are limited: URL and description to 2,000 characters, notes to 10,000, title to 200, Tag name to 50.
 - Form posts are limited to 1 MB.
-- Login and signup are rate limited per IP address, to about 10 attempts a minute.
+- Login, signup and password change are rate limited per client IP address, to 10 attempts a minute each. The client IP is read from a proxy's header only when the self-hoster names that header.
 - Metadata fetching does not reach private or loopback addresses by default. Self-hosters can opt out; the demo cannot.
 - Requests from other sites cannot act on a logged-in User's behalf.
 
@@ -153,11 +153,13 @@ Options and early preparations for these are in [scaling.md](scaling.md).
 | 6 | **Import and export,** with round-trip tests | Done |
 | 6a | **Theme switch:** dark, light or system on the Account page, and an Account icon in the nav on small screens | Done |
 | 6b | **Tag autocomplete** on the add and edit forms | Done |
-| 7 | **Public demo** on Render; needs step 6 for its seed data | Planned |
+| 7 | **Public demo** on Render; needs step 6 for its seed data | In progress |
+| 7a | **Rate limiting** on login, signup and password change, with the client IP from a trusted proxy | Done |
+| 7b | **Threat model,** with security checks in CI | Planned |
+| 7c | **Demo mode:** reset, seed data, the Demo User and notices | Planned |
+| 7d | **Deploy** to Render | Planned |
 | 8 | **JSON API and tokens** | Planned |
 | 9 | **Browser extension:** popup, then right-click, then direct import | Planned |
 | 10 | **Background metadata and favicons** | Planned |
-
-The login and signup rate limit belongs with step 7 at the latest, because the demo is the first public deployment. Until then, the self-hosting docs warn about it.
 
 README still to finish: screenshot, an architecture paragraph, and a "Design decisions" section linking to the ADRs.

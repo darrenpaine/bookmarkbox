@@ -12,10 +12,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/darrenpaine/bookmarkbox/internal/models"
+	"github.com/darrenpaine/bookmarkbox/internal/ratelimit"
 	"github.com/darrenpaine/bookmarkbox/migrations"
 
 	"github.com/alexedwards/scs/sqlite3store"
@@ -37,6 +39,10 @@ type application struct {
 	formDecoder    *form.Decoder
 	sessionManager *scs.SessionManager
 	debug          bool
+
+	attempts             attemptLimiter
+	clientIPHeader       string
+	clientIPHeaderWarned atomic.Bool
 }
 
 // How long requests get to finish on shutdown. Docker kills a container 10
@@ -94,6 +100,8 @@ func run(cfg config, logger *slog.Logger) error {
 		formDecoder:    form.NewDecoder(),
 		sessionManager: sessionManager,
 		debug:          cfg.debug,
+		attempts:       ratelimit.New(attemptsPerMinute, attemptsBurst, attemptsMaxKeys),
+		clientIPHeader: cfg.clientIPHeader,
 	}
 
 	protection := http.NewCrossOriginProtection()

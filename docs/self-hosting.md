@@ -25,6 +25,7 @@ Settings go in `.env`, and `.env.example` lists them all.
 | `MAX_BOOKMARKS_PER_USER` | `0` | `0` is unlimited |
 | `MAX_TAGS_PER_USER` | `0` | `0` is unlimited |
 | `COOKIE_SECURE` | `true` | Send the session cookie over HTTPS only |
+| `CLIENT_IP_HEADER` | unset | Header your reverse proxy puts the client's IP address in; see below |
 | `HOST_PORT` | `4000` | Published port on the host |
 | `BIND_ADDRESS` | `127.0.0.1` | Host address the port is published on |
 
@@ -51,9 +52,22 @@ bookmarks.example.com {
 }
 ```
 
-Keep the default `BIND_ADDRESS` and `COOKIE_SECURE`. Any other proxy must pass on the original `Host` header, or form posts can be refused as cross-origin. With nginx, that means `proxy_set_header Host $host;`.
+Keep the default `BIND_ADDRESS` and `COOKIE_SECURE`, and add this to `.env`:
 
-> **Before exposing it to the internet:** login and signup aren't rate limited yet. Use a strong password, and keep `MAX_USERS` at the number of people who need an account.
+```bash
+CLIENT_IP_HEADER=X-Forwarded-For
+```
+
+Logging in, signing up and changing a password are limited to 10 attempts a minute from each client. Behind a proxy every request seems to come from the proxy, so without this setting all your Users share one allowance, and the log shows the proxy's address. Only set it when a proxy is in front: otherwise anyone could send the header and pick their own address.
+
+Any other proxy must pass on the original `Host` header, or form posts can be refused as cross-origin, and must add the client to `X-Forwarded-For`. With nginx:
+
+```
+proxy_set_header Host $host;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+```
+
+Before exposing it to the internet, use a strong password, and keep `MAX_USERS` at the number of people who need an account.
 
 ## Back up
 

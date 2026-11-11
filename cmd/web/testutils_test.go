@@ -15,6 +15,7 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 	"github.com/darrenpaine/bookmarkbox/internal/models/mocks"
+	"github.com/darrenpaine/bookmarkbox/internal/ratelimit"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/form/v4"
 )
@@ -44,6 +45,7 @@ func newTestApplication(t *testing.T) *application {
 		templateCache:  templateCache,
 		formDecoder:    formDecoder,
 		sessionManager: sessionManager,
+		attempts:       ratelimit.New(attemptsPerMinute, attemptsBurst, attemptsMaxKeys),
 	}
 }
 

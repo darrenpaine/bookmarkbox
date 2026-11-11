@@ -571,6 +571,11 @@ func (app *application) userSignupPost(w http.ResponseWriter, r *http.Request) {
 		app.clientError(w, http.StatusBadRequest)
 		return
 	}
+	if !app.allowAttempt(r) {
+		form.AddNonFieldError(tooManyAttemptsMessage)
+		app.tooManyAttempts(w, r, "signup.tmpl", form)
+		return
+	}
 	// VALIDATION:
 	// Note email field is case insensitive in the DB (utf8mb4_unicode_ci)
 	form.CheckField(validator.NotBlank(form.Name), "name", "This field cannot be blank")
@@ -621,6 +626,11 @@ func (app *application) userLoginPost(w http.ResponseWriter, r *http.Request) {
 	err := app.decodePostForm(w, r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+	if !app.allowAttempt(r) {
+		form.AddNonFieldError(tooManyAttemptsMessage)
+		app.tooManyAttempts(w, r, "login.tmpl", form)
 		return
 	}
 	// Do some validation checks on the form. We check that both email and
@@ -742,6 +752,11 @@ func (app *application) userPasswordPost(w http.ResponseWriter, r *http.Request)
 	err := app.decodePostForm(w, r, &form)
 	if err != nil {
 		app.clientError(w, http.StatusBadRequest)
+		return
+	}
+	if !app.allowAttempt(r) {
+		form.AddNonFieldError(tooManyAttemptsMessage)
+		app.tooManyAttempts(w, r, "password.tmpl", form)
 		return
 	}
 
