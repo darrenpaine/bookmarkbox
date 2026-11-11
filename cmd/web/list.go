@@ -47,7 +47,12 @@ type listState struct {
 // A search is the exception: without a sort it shows the best matches, and
 // that sort is never remembered, as it means nothing without a search.
 func (app *application) readListState(r *http.Request) listState {
-	q := r.URL.Query()
+	return app.parseListState(r, r.URL.Query(), true)
+}
+
+// parseListState reads a list address's query. With remember, a view or sort
+// it gives is kept for the session; without, the session is only read.
+func (app *application) parseListState(r *http.Request, q url.Values, remember bool) listState {
 	s := listState{View: q.Get("view")}
 	s.Sort = q.Get("sort")
 	s.Search = strings.Join(strings.Fields(q.Get("q")), " ")
@@ -60,14 +65,18 @@ func (app *application) readListState(r *http.Request) listState {
 	ctx := r.Context()
 
 	if slices.Contains(listViews, s.View) {
-		app.sessionManager.Put(ctx, sessionListView, s.View)
+		if remember {
+			app.sessionManager.Put(ctx, sessionListView, s.View)
+		}
 	} else if s.View = app.sessionManager.GetString(ctx, sessionListView); !slices.Contains(listViews, s.View) {
 		s.View = viewCompact
 	}
 	if s.Sort == models.SortMatch && s.Search != "" {
 		// Searching: the best matches, as above.
 	} else if slices.Contains(models.Sorts, s.Sort) {
-		app.sessionManager.Put(ctx, sessionListSort, s.Sort)
+		if remember {
+			app.sessionManager.Put(ctx, sessionListSort, s.Sort)
+		}
 	} else if s.Sort = app.sessionManager.GetString(ctx, sessionListSort); !slices.Contains(models.Sorts, s.Sort) {
 		s.Sort = models.SortNewest
 	}
@@ -329,12 +338,12 @@ func (app *application) bookmarkList(w http.ResponseWriter, r *http.Request) {
 
 	if page.Total == 0 && state.FilterCount() > 0 {
 		// Is the list empty because of the Filters, or because there's nothing?
-		all, err := app.bookmarks.List(userID, models.ListQuery{})
+		all, err := app.bookmarks.Count(userID, models.Filter{})
 		if err != nil {
 			app.serverError(w, err)
 			return
 		}
-		lp.Empty = all.Total == 0
+		lp.Empty = all == 0
 	} else {
 		lp.Empty = page.Total == 0
 	}
@@ -363,6 +372,30 @@ func (app *application) bookmarkList(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
 	data.List = lp
 	app.render(w, http.StatusOK, "list.tmpl", data)
+}
+
+// currentList is the list the page making an htmx request shows, from the
+// address htmx sends with it, or false if that page isn't a list.
+func (app *application) currentList(r *http.Request) (listState, bool) {
+	u, err := url.Parse(r.Header.Get("HX-Current-URL"))
+	if err != nil || u.Path != "/bookmarks" {
+		return listState{}, false
+	}
+	return app.parseListState(r, u.Query(), false), true
+}
+
+// listTitle is the heading of a list page, counted again, for htmx to put in
+// place of the old one after a row has gone. Writes nothing for other pages.
+func (app *application) listTitle(w http.ResponseWriter, r *http.Request) error {
+	state, ok := app.currentList(r)
+	if !ok {
+		return nil
+	}
+	n, err := app.bookmarks.Count(app.authenticatedUserID(r), state.Filter)
+	if err != nil {
+		return err
+	}
+	return app.templateCache["home.tmpl"].ExecuteTemplate(w, "listtitle", state.Describe(n))
 }
 
 // rememberList keeps the address of the list the User is looking at, without

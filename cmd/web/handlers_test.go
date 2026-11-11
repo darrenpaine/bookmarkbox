@@ -694,11 +694,36 @@ func TestBookmarkActionsInPlace(t *testing.T) {
 		assert.StringContains(t, body, "<button class='toggle'")
 	})
 
-	t.Run("Deleting a list row returns nothing", func(t *testing.T) {
-		code, header, body := ts.postHTMX(t, "/bookmarks/1/delete", url.Values{}, map[string]string{"HX-Target": "bookmark-1"})
+	t.Run("Deleting a row off the home page returns nothing", func(t *testing.T) {
+		code, header, body := ts.postHTMX(t, "/bookmarks/1/delete", url.Values{}, map[string]string{
+			"HX-Target": "bookmark-1", "HX-Current-URL": ts.URL + "/",
+		})
 		assert.Equal(t, code, http.StatusOK)
 		assert.Equal(t, body, "")
 		assert.Equal(t, header.Get("HX-Redirect"), "")
+	})
+
+	// On a list, the row goes and the heading is counted again, with the
+	// list's Filters. (The mock still has its Bookmark after a delete.)
+	t.Run("Deleting a list row updates the heading", func(t *testing.T) {
+		tests := []struct{ current, want string }{
+			{"/bookmarks", "1 bookmark"},
+			{"/bookmarks?view=cards&sort=title&tag=go", "1 bookmark tagged go"},
+			{"/bookmarks?view=compact&fav=1&tag=go", "No favourites tagged go"},
+			{"/bookmarks?view=compact&sort=match&q=effective", "1 bookmark matching “effective”"},
+		}
+		for _, tt := range tests {
+			code, header, body := ts.postHTMX(t, "/bookmarks/1/delete", url.Values{}, map[string]string{
+				"HX-Target": "bookmark-1", "HX-Current-URL": ts.URL + tt.current,
+			})
+			assert.Equal(t, code, http.StatusOK)
+			assert.Equal(t, body, "<h1 id='list-title' hx-swap-oob='true'>"+tt.want+"</h1>")
+			assert.Equal(t, header.Get("HX-Redirect"), "")
+		}
+
+		// Reading the list's address doesn't change the remembered view.
+		_, _, body := ts.get(t, "/bookmarks")
+		assert.StringContains(t, body, "<ul class='list'>")
 	})
 
 	t.Run("Deleting from its own page goes home", func(t *testing.T) {

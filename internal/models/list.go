@@ -183,8 +183,8 @@ func (m *BookmarkModel) List(userID int, q ListQuery) (*ListPage, error) {
 	filterWhere, filterArgs := q.Filter.where(userID)
 
 	page := &ListPage{Bookmarks: []*Bookmark{}}
-	err := m.DB.QueryRow(`SELECT count(*) FROM bookmarks b WHERE `+filterWhere, filterArgs...).Scan(&page.Total)
-	if err != nil {
+	var err error
+	if page.Total, err = m.Count(userID, q.Filter); err != nil {
 		return nil, err
 	}
 
@@ -285,8 +285,8 @@ func bm25Weights() string {
 // the other Filters, best first. Ties go to the newest.
 func (m *BookmarkModel) bestMatches(userID int, f Filter) (*ListPage, error) {
 	page := &ListPage{Bookmarks: []*Bookmark{}}
-	where, args := f.where(userID)
-	if err := m.DB.QueryRow(`SELECT count(*) FROM bookmarks b WHERE `+where, args...).Scan(&page.Total); err != nil {
+	var err error
+	if page.Total, err = m.Count(userID, f); err != nil {
 		return nil, err
 	}
 	if page.Total == 0 {
@@ -296,7 +296,7 @@ func (m *BookmarkModel) bestMatches(userID int, f Filter) (*ListPage, error) {
 	// Rank by joining the index directly, rather than through where's subquery.
 	match := ftsQuery(f.Search)
 	f.Search = ""
-	where, args = f.where(userID)
+	where, args := f.where(userID)
 	stmt := `SELECT ` + bookmarkColumns + ` FROM bookmarks_fts JOIN bookmarks b ON b.id = bookmarks_fts.rowid
 	         WHERE bookmarks_fts MATCH ? AND ` + where + `
 	         ORDER BY bm25(bookmarks_fts, ` + bm25Weights() + `), b.created_at DESC, b.id DESC LIMIT ?`

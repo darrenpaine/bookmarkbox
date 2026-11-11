@@ -26,7 +26,7 @@ type BookmarkModelInterface interface {
 	RemoveTag(userID, id int, name string) error
 	Delete(userID, id int) error
 	All(userID int) ([]*Bookmark, error)
-	Count(userID int) (int, error)
+	Count(userID int, f Filter) (int, error)
 	PreviewImport(userID int, items []ImportItem) (*ImportSummary, error)
 	Import(userID int, items []ImportItem) (*ImportSummary, error)
 }
@@ -302,10 +302,12 @@ func (m *BookmarkModel) All(userID int) ([]*Bookmark, error) {
 	return bookmarks, nil
 }
 
-// Count returns how many bookmarks the user has.
-func (m *BookmarkModel) Count(userID int) (int, error) {
+// Count returns how many of the user's bookmarks match the filter. An empty
+// filter counts them all.
+func (m *BookmarkModel) Count(userID int, f Filter) (int, error) {
+	where, args := f.where(userID)
 	var n int
-	err := m.DB.QueryRow(`SELECT count(*) FROM bookmarks WHERE user_id = ?`, userID).Scan(&n)
+	err := m.DB.QueryRow(`SELECT count(*) FROM bookmarks b WHERE `+where, args...).Scan(&n)
 	return n, err
 }
 

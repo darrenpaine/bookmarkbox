@@ -10,7 +10,7 @@
 </div>
 {{else}}
 <div class='list-head'>
-    <h1>{{.State.Describe .Total}}</h1>
+    <h1 id='list-title'>{{.State.Describe .Total}}</h1>
     <div class='list-controls'>
         <div class='switch' role='group' aria-label='List view'>
             {{range .Views}}<a href='{{$.List.State.WithView .}}'{{if eq . $.List.State.View}} aria-current='true'{{end}}>{{$.List.ViewName .}}</a>{{end}}
