@@ -16,12 +16,14 @@ A single server-rendered Go web application.
 | Sessions | `scs`, stored in SQLite through `sqlite3store` |
 | Passwords | bcrypt, cost 12 |
 | Cross-site protection | Go's `http.NewCrossOriginProtection` |
+| Rate limiting | `golang.org/x/time/rate`, in memory |
 
 Layout:
 
 - `cmd/web`: handlers, routes, middleware, templates and `main`.
 - `internal/models`: all SQL, behind interfaces. Handler tests use the mocks in `internal/models/mocks`.
 - `internal/validator`: form validation.
+- `internal/ratelimit`: attempts counted per key, for [rate limiting](#rate-limiting).
 - `internal/urls`: URL helpers shared by the models, migrations and templates, such as `Domain`.
 - `migrations`: numbered goose migrations, mostly SQL files. A migration that needs Go code is registered in `migrations.go`.
 - `ui`: templates and static files.
@@ -266,6 +268,7 @@ Environment variables set the defaults, and flags override them for local use. A
 | `MAX_USERS` | `-max-users` | `1` | Signup closes at this many Users; `0` is unlimited |
 | `MAX_BOOKMARKS_PER_USER` | `-max-bookmarks` | `0` | `0` is unlimited |
 | `MAX_TAGS_PER_USER` | `-max-tags` | `0` | `0` is unlimited |
+| `CLIENT_IP_HEADER` | `-client-ip-header` | unset | Header a trusted proxy puts the client's IP address in; see [Rate limiting](#rate-limiting) |
 
 - `-debug` shows stack traces in the browser. It is for local use and has no environment variable.
 - The app takes a file path rather than a DSN, and always adds the foreign key, WAL, busy timeout and immediate transaction settings, so they can't be left out by accident.
@@ -275,7 +278,6 @@ Environment variables set the defaults, and flags override them for local use. A
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `TRUSTED_PROXY` | unset | When set, the real client IP is taken from the forwarded header |
 | `CORS_ORIGINS` | unset | Origins allowed to call `/api` |
 | `FETCH_ALLOW_PRIVATE` | `false` | Let metadata fetching reach private addresses |
 | `DEMO_MODE` | `false` | Turn on the demo behaviour below |
@@ -306,9 +308,21 @@ Render's free web service runs the same image with `DEMO_MODE=true`, `MAX_USERS=
 - The seed of about 200 Bookmarks stays below the limits of 300 Bookmarks and 300 Tags, leaving room for visitors.
 - Handlers block password changes and token creation for the Demo User.
 
-### Rate limiting (Planned)
+### Rate limiting
 
-An in-memory, per-IP limit of about 10 attempts a minute on login and signup. bcrypt is deliberately slow, so a burst could otherwise stall a small instance. The forwarded client IP is only trusted when `TRUSTED_PROXY` is set.
+Posts to log in, sign up and change a password are limited to 10 a minute from each client, as a burst or spread out. A client that goes over is refused for a whole minute. Otherwise one attempt would refill every 6 seconds, and someone retyping a password would never see the limit. bcrypt is deliberately slow, so a burst could otherwise stall a small instance, and guessing passwords becomes slow.
+
+- Each route counts separately. Pages that show the forms are not limited.
+- Over the limit, the form is shown again with "Too many attempts. Try again in a minute.", a 429 status and `Retry-After: 60`. What was typed is kept, apart from passwords, and the attempt is logged as a warning.
+- The counts are in memory (`internal/ratelimit`, using `golang.org/x/time/rate`), so they are per server and start again on a restart. Clients that have refilled are forgotten, and at most 10,000 are tracked at once: past that, new clients are refused until some go idle. The handlers see only an `Allow(key)` interface, so a shared store can replace it ([scaling](scaling.md)).
+- An IPv6 client is counted by its /64, because one home or server is usually given a whole /64.
+
+**Client IP.** Without a proxy, the client is the connection's address. Behind one, every request comes from the proxy, so `CLIENT_IP_HEADER` names the header the proxy puts the client's address in. Forwarded headers are otherwise ignored, since any client can send them.
+
+- `X-Forwarded-For` lists every hop, and only the last was added by the proxy in front of the app, so the last entry is used. The ones before it come from the client.
+- Any other header, such as `True-Client-IP` on Render, must hold exactly one address.
+- A missing or invalid value falls back to the connection's address, and the first one is logged as a warning, since it usually means the setting is wrong.
+- The request log shows the same client IP.
 
 ### CI
 

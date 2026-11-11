@@ -26,10 +26,12 @@ func TestParseConfigEnvironment(t *testing.T) {
 		"MAX_USERS":              "5",
 		"MAX_BOOKMARKS_PER_USER": "300",
 		"MAX_TAGS_PER_USER":      "200",
+		"CLIENT_IP_HEADER":       "true-client-ip",
 	}))
 	assert.NilError(t, err)
 	assert.Equal(t, cfg, config{
 		addr: ":8080", dbPath: "/data/box.db", maxUsers: 5, maxBookmarks: 300, maxTags: 200,
+		clientIPHeader: "True-Client-Ip",
 	})
 }
 
@@ -56,6 +58,8 @@ func TestParseConfigRejectsInvalidValues(t *testing.T) {
 		{name: "Bookmark limit is text", env: map[string]string{"MAX_BOOKMARKS_PER_USER": "1k"}},
 		{name: "Tag limit is text", env: map[string]string{"MAX_TAGS_PER_USER": "1.5"}},
 		{name: "Negative flag", args: []string{"-max-tags=-1"}},
+		{name: "Client IP header with a space", env: map[string]string{"CLIENT_IP_HEADER": "X Forwarded For"}},
+		{name: "Client IP header with a colon", args: []string{"-client-ip-header", "X-Real-IP:"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

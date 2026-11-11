@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 )
@@ -17,6 +18,9 @@ type config struct {
 	maxUsers     int
 	maxBookmarks int
 	maxTags      int
+	// clientIPHeader names the header a proxy puts the client's IP address
+	// in. Empty means there's no proxy, so the connection's address is used.
+	clientIPHeader string
 }
 
 // parseConfig reads the settings. An invalid value is an error rather than
@@ -47,6 +51,8 @@ func parseConfig(args []string, getenv func(string) string) (config, error) {
 		return config{}, err
 	}
 
+	clientIPHeader := getenv("CLIENT_IP_HEADER")
+
 	var cfg config
 	fs := flag.NewFlagSet("bookmarkbox", flag.ContinueOnError)
 	fs.StringVar(&cfg.addr, "addr", ":"+port, "HTTP network address")
@@ -56,8 +62,15 @@ func parseConfig(args []string, getenv func(string) string) (config, error) {
 	fs.IntVar(&cfg.maxUsers, "max-users", maxUsers, "Signup closes at this many users (0 for unlimited)")
 	fs.IntVar(&cfg.maxBookmarks, "max-bookmarks", maxBookmarks, "Maximum bookmarks per user (0 for unlimited)")
 	fs.IntVar(&cfg.maxTags, "max-tags", maxTags, "Maximum tags per user (0 for unlimited)")
+	fs.StringVar(&cfg.clientIPHeader, "client-ip-header", clientIPHeader, "Header holding the client IP set by a trusted proxy, such as X-Forwarded-For")
 	if err := fs.Parse(args); err != nil {
 		return config{}, err
+	}
+	if cfg.clientIPHeader != "" {
+		if !validHeaderName(cfg.clientIPHeader) {
+			return config{}, fmt.Errorf("CLIENT_IP_HEADER: %q is not a header name", cfg.clientIPHeader)
+		}
+		cfg.clientIPHeader = http.CanonicalHeaderKey(cfg.clientIPHeader)
 	}
 
 	for _, limit := range []struct {
@@ -73,6 +86,23 @@ func parseConfig(args []string, getenv func(string) string) (config, error) {
 		}
 	}
 	return cfg, nil
+}
+
+// validHeaderName reports whether name is an HTTP header name: letters,
+// digits and the few symbols a token allows (RFC 9110, section 5.6.2).
+func validHeaderName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, c := range name {
+		switch {
+		case 'a' <= c && c <= 'z', 'A' <= c && c <= 'Z', '0' <= c && c <= '9':
+		case strings.ContainsRune("!#$%&'*+-.^_`|~", c):
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func envPort(getenv func(string) string) (string, error) {
