@@ -364,7 +364,10 @@ func (app *application) bookmarkDeletePost(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if isHTMX(r) && r.Header.Get("HX-Target") == fmt.Sprintf("bookmark-%d", id) {
-		w.WriteHeader(http.StatusOK)
+		// The row goes, and on a list the count in its heading drops.
+		if err := app.listTitle(w, r); err != nil {
+			app.serverError(w, err)
+		}
 		return
 	}
 	app.flash(r, "Bookmark deleted.")
@@ -702,7 +705,7 @@ func (app *application) userAccountView(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	count, err := app.bookmarks.Count(userID)
+	count, err := app.bookmarks.Count(userID, models.Filter{})
 	if err != nil {
 		app.serverError(w, err)
 		return

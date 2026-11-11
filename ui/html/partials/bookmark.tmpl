@@ -87,6 +87,9 @@
 {{end}}
 {{end}}
 
+{{/* A list's heading, swapped in out of band after a row is deleted. */}}
+{{define "listtitle"}}<h1 id='list-title' hx-swap-oob='true'>{{.}}</h1>{{end}}
+
 {{define "tageditor"}}
 <div class='tag-editor' id='tag-editor'>
     {{with .Bookmark}}

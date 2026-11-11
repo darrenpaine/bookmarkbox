@@ -154,8 +154,8 @@ func (m *BookmarkModel) All(userID int) ([]*models.Bookmark, error) {
 	return []*models.Bookmark{}, nil
 }
 
-func (m *BookmarkModel) Count(userID int) (int, error) {
-	if userID == mockBookmark.UserID {
+func (m *BookmarkModel) Count(userID int, f models.Filter) (int, error) {
+	if userID == mockBookmark.UserID && matches(f) {
 		return 1, nil
 	}
 	return 0, nil
@@ -178,7 +178,7 @@ func (m *BookmarkModel) PreviewImport(userID int, items []models.ImportItem) (*m
 			s.MaxBookmarks = 1
 		}
 	}
-	existing, _ := m.Count(userID)
+	existing, _ := m.Count(userID, models.Filter{})
 	s.BookmarksAfter = existing + s.New
 	return s, nil
 }

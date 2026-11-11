@@ -86,7 +86,7 @@ func TestImport(t *testing.T) {
 	assert.Equal(t, *preview, want)
 
 	// Previewing saves nothing
-	n, err := m.Count(1)
+	n, err := m.Count(1, Filter{})
 	assert.NilError(t, err)
 	assert.Equal(t, n, 1)
 
@@ -107,7 +107,7 @@ func TestImport(t *testing.T) {
 	assert.Equal(t, strings.Join(all[2].Tags, ","), UnfiledTag)
 
 	// Bob's Bookmarks are untouched
-	n, err = m.Count(2)
+	n, err = m.Count(2, Filter{})
 	assert.NilError(t, err)
 	assert.Equal(t, n, 0)
 
@@ -158,7 +158,7 @@ func TestImportLimits(t *testing.T) {
 
 			_, err = m.Import(1, items)
 			assert.Equal(t, errors.Is(err, tt.wantErr), true)
-			n, err := m.Count(1)
+			n, err := m.Count(1, Filter{})
 			assert.NilError(t, err)
 			if tt.wantErr != nil {
 				assert.Equal(t, n, 1) // all or nothing

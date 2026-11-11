@@ -124,7 +124,7 @@ func TestBookmarkList(t *testing.T) {
 	t.Run("Compact rows", func(t *testing.T) {
 		code, _, body := ts.get(t, "/bookmarks")
 		assert.Equal(t, code, http.StatusOK)
-		assert.StringContains(t, body, "<h1>1 bookmark</h1>")
+		assert.StringContains(t, body, "<h1 id='list-title'>1 bookmark</h1>")
 		// The title opens the website, and Details opens the Bookmark's own page.
 		assert.StringContains(t, body, "<a class='title' href='https://go.dev/doc/effective_go' rel='noopener noreferrer'>Effective Go</a>")
 		assert.StringContains(t, body, "<a href='/bookmarks/1'>Details</a>")
@@ -138,7 +138,7 @@ func TestBookmarkList(t *testing.T) {
 	t.Run("Filtered to nothing", func(t *testing.T) {
 		code, _, body := ts.get(t, "/bookmarks?fav=1&tag=go")
 		assert.Equal(t, code, http.StatusOK)
-		assert.StringContains(t, body, "<h1>No favourites tagged go</h1>")
+		assert.StringContains(t, body, "<h1 id='list-title'>No favourites tagged go</h1>")
 		assert.StringContains(t, body, "href='/bookmarks?view=compact&amp;sort=newest'>Clear filters</a>")
 		if strings.Contains(body, "No bookmarks yet") {
 			t.Error("shows the empty state for a User with Bookmarks")
@@ -147,7 +147,7 @@ func TestBookmarkList(t *testing.T) {
 
 	t.Run("Filters that match", func(t *testing.T) {
 		_, _, body := ts.get(t, "/bookmarks?tag=GO&tag=docs&domain=Go.Dev")
-		assert.StringContains(t, body, "<h1>1 bookmark tagged go and docs from go.dev</h1>")
+		assert.StringContains(t, body, "<h1 id='list-title'>1 bookmark tagged go and docs from go.dev</h1>")
 		assert.StringContains(t, body, "aria-label='Remove filter go'")
 		assert.StringContains(t, body, "aria-label='Remove filter go.dev'")
 	})
@@ -184,7 +184,7 @@ func TestBookmarkList(t *testing.T) {
 	t.Run("Search", func(t *testing.T) {
 		code, _, body := ts.get(t, "/bookmarks?q=++effective++go")
 		assert.Equal(t, code, http.StatusOK)
-		assert.StringContains(t, body, "<h1>1 bookmark matching “effective go”</h1>")
+		assert.StringContains(t, body, "<h1 id='list-title'>1 bookmark matching “effective go”</h1>")
 		assert.StringContains(t, body, "<summary>Sort: Best match</summary>")
 		assert.StringContains(t, body, "aria-label='Remove search effective go'")
 		assert.StringContains(t, body, "href='/bookmarks?view=compact&amp;sort=title&amp;q=effective&#43;go'>A–Z</a>")
@@ -195,20 +195,20 @@ func TestBookmarkList(t *testing.T) {
 
 	t.Run("Search keeps the Filters", func(t *testing.T) {
 		_, _, body := ts.get(t, "/bookmarks?q=effective&tag=go&domain=go.dev")
-		assert.StringContains(t, body, "<h1>1 bookmark matching “effective” tagged go from go.dev</h1>")
+		assert.StringContains(t, body, "<h1 id='list-title'>1 bookmark matching “effective” tagged go from go.dev</h1>")
 		assert.StringContains(t, body, "<input type='hidden' name='tag' value='go'>")
 		assert.StringContains(t, body, "<input type='hidden' name='domain' value='go.dev'>")
 	})
 
 	t.Run("Search with no matches", func(t *testing.T) {
 		_, _, body := ts.get(t, "/bookmarks?q=rust")
-		assert.StringContains(t, body, "<h1>No bookmarks matching “rust”</h1>")
+		assert.StringContains(t, body, "<h1 id='list-title'>No bookmarks matching “rust”</h1>")
 		assert.StringContains(t, body, "Clear filters</a>")
 	})
 
 	t.Run("An empty search is the plain list", func(t *testing.T) {
 		_, _, body := ts.get(t, "/bookmarks?q=+++")
-		assert.StringContains(t, body, "<h1>1 bookmark</h1>")
+		assert.StringContains(t, body, "<h1 id='list-title'>1 bookmark</h1>")
 		assert.StringContains(t, body, "<summary>Sort: Newest</summary>")
 	})
 
@@ -249,7 +249,7 @@ func TestBookmarkListRemembers(t *testing.T) {
 	_, _, body = ts.get(t, "/bookmarks")
 	assert.StringContains(t, body, "<a href='/bookmarks?view=cards&amp;sort=title' aria-current='true'>Cards</a>")
 	assert.StringContains(t, body, "<summary>Sort: A–Z</summary>")
-	assert.StringContains(t, body, "<h1>1 bookmark</h1>")
+	assert.StringContains(t, body, "<h1 id='list-title'>1 bookmark</h1>")
 
 	// A search shows the best matches, without forgetting the remembered sort.
 	_, _, body = ts.get(t, "/bookmarks?q=go")

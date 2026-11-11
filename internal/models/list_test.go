@@ -90,6 +90,10 @@ func TestBookmarkModelListFilters(t *testing.T) {
 				t.Errorf("got %q; want %q", got, tt.want)
 			}
 			assert.Equal(t, page.Total, len(tt.want))
+
+			n, err := m.Count(2, tt.filter)
+			assert.NilError(t, err)
+			assert.Equal(t, n, len(tt.want))
 		})
 	}
 
