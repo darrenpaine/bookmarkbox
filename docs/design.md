@@ -8,7 +8,7 @@ A single server-rendered Go web application.
 
 | Part | Choice |
 |---|---|
-| Language | Go 1.26 |
+| Language | Go 1.27 |
 | Router | Chi, with route groups for public and logged-in pages |
 | Templates | `html/template`, embedded in the binary (`ui/`) |
 | Database | SQLite through `modernc.org/sqlite` ([ADR 1](adr/0001-sqlite-with-an-ephemeral-demo.md)) |
