@@ -864,6 +864,55 @@ a.domain:hover {
     min-width: 0;
 }
 
+/* Tag suggestions, under a Tags field (tags.js). Each is the Tag's own
+   ribbon, with how many Bookmarks use it. */
+
+.suggest {
+    position: relative;
+}
+
+.tag-add .suggest {
+    flex: 1;
+    min-width: 0;
+}
+
+.suggestions {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 4px);
+    z-index: 5;
+    max-width: 360px;
+    margin: 0;
+    padding: 4px;
+    list-style: none;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 6px 20px rgb(0 0 0 / 0.12);
+}
+
+.suggestions [role="option"] {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 36px;
+    padding: 2px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.suggestions [aria-selected="true"] {
+    background: var(--accent-soft);
+}
+
+.suggestions .count {
+    color: var(--muted);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+}
+
 /* Forms */
 
 input[type="text"],

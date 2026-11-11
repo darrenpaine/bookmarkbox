@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -111,6 +112,9 @@ func (app *application) bookmarkView(w http.ResponseWriter, r *http.Request) {
 	data := app.newTemplateData(r)
 	data.Bookmark = bookmark
 	data.BackURL = app.backURL(r)
+	if !app.addTagSuggestions(w, r, data) {
+		return
+	}
 	app.render(w, http.StatusOK, "view.tmpl", data)
 }
 
@@ -159,18 +163,38 @@ func (form *bookmarkForm) bookmark() *models.Bookmark {
 	}
 }
 
-// renderBookmarkFormError re-displays a form with a validation error status.
-func (app *application) renderBookmarkFormError(w http.ResponseWriter, r *http.Request, page string, form bookmarkForm) {
+// renderBookmarkForm shows the add or edit form, with Tag suggestions.
+func (app *application) renderBookmarkForm(w http.ResponseWriter, r *http.Request, status int, page string, form bookmarkForm) {
 	data := app.newTemplateData(r)
 	data.Form = form
-	app.render(w, http.StatusUnprocessableEntity, page, data)
+	if !app.addTagSuggestions(w, r, data) {
+		return
+	}
+	app.render(w, status, page, data)
+}
+
+// renderBookmarkFormError re-displays a form with a validation error status.
+func (app *application) renderBookmarkFormError(w http.ResponseWriter, r *http.Request, page string, form bookmarkForm) {
+	app.renderBookmarkForm(w, r, http.StatusUnprocessableEntity, page, form)
+}
+
+// addTagSuggestions gives a page the User's Tags for autocomplete, most used
+// first, then A-Z. It reports false after sending an error.
+func (app *application) addTagSuggestions(w http.ResponseWriter, r *http.Request, data *templateData) bool {
+	tags, err := app.tags.List(app.authenticatedUserID(r))
+	if err != nil {
+		app.serverError(w, err)
+		return false
+	}
+	tags = slices.Clone(tags) // List gives them A-Z
+	slices.SortStableFunc(tags, func(a, b *models.Tag) int { return b.BookmarkCount - a.BookmarkCount })
+	data.TagSuggestions = tags
+	return true
 }
 
 // Render the bookmark Create form.
 func (app *application) bookmarkCreateShowForm(w http.ResponseWriter, r *http.Request) {
-	data := app.newTemplateData(r)
-	data.Form = bookmarkForm{Action: "/bookmarks/new"}
-	app.render(w, http.StatusOK, "create.tmpl", data)
+	app.renderBookmarkForm(w, r, http.StatusOK, "create.tmpl", bookmarkForm{Action: "/bookmarks/new"})
 }
 
 // Validate and save a new bookmark, then show it.
@@ -219,8 +243,7 @@ func (app *application) bookmarkEditShowForm(w http.ResponseWriter, r *http.Requ
 		}
 		return
 	}
-	data := app.newTemplateData(r)
-	data.Form = bookmarkForm{
+	app.renderBookmarkForm(w, r, http.StatusOK, "edit.tmpl", bookmarkForm{
 		Action:      fmt.Sprintf("/bookmarks/%d/edit", id),
 		URL:         bookmark.URL,
 		Title:       bookmark.Title,
@@ -229,8 +252,7 @@ func (app *application) bookmarkEditShowForm(w http.ResponseWriter, r *http.Requ
 		Tags:        strings.Join(bookmark.Tags, ", "),
 		Favourite:   bookmark.Favourite,
 		ReadLater:   bookmark.ReadLater,
-	}
-	app.render(w, http.StatusOK, "edit.tmpl", data)
+	})
 }
 
 // Validate and save changes to a bookmark, then show it.

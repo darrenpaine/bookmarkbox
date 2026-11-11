@@ -157,6 +157,17 @@ htmx 2.0.11 is served from `ui/static/js`. htmx 2.0.x is used because 4.0 was re
 - The `htmx-config` meta tag turns off htmx's inline indicator styles and `eval`, so the CSP stays `default-src 'self'`.
 - Flash messages have two kinds, success and error.
 
+### Tag autocomplete
+
+- The add and edit forms and a Bookmark's page list the User's Tags in a hidden `<datalist id='tag-suggestions'>`, most used first, then A-Z, each with its colour class and Bookmark count. No route or request is needed.
+- `ui/static/js/tags.js` is the app's only script besides htmx, and those pages alone load it. It is plain JavaScript, with no `eval` and no inline handlers, so the CSP is unchanged.
+- A field opts in with `data-tag-suggest`: `list` for the comma-separated Tags field, `one` for the Tag editor's field. On first focus the script makes it an ARIA combobox with a listbox below it. It listens on the document, so the Tag editor keeps working after htmx swaps it.
+- **Matching:** the word after the last comma, ignoring case, and only while typing at the end of the field. Tags starting with it come first, then Tags with a later word starting with it, then Tags containing it. Tags already in the field, or already on the Bookmark, are left out. At most 8 are shown, or 6 under 720px. An empty word shows nothing.
+- **Choosing:** ↓ and ↑ move, Enter or Tab accepts, and Esc closes; Enter with nothing highlighted submits as before. A click or tap accepts. In a `list` field, accepting replaces the word and adds ", ". In a `one` field, it submits the form at once, so htmx adds the Tag in place and the field keeps focus.
+- The highlight follows the mouse only when it moves, so a list that shifts under a still pointer doesn't take the highlight from the keyboard.
+- Each suggestion is the Tag's own ribbon with its count, at least 36px tall. Without JavaScript the fields are plain text, as before.
+- The handler tests check the list and the fields' markup. The script itself was checked in Firefox, with no browser tests in the repository yet.
+
 ### List views
 
 `GET /bookmarks` serves every List view, for example `/bookmarks?view=cards&sort=title&q=sql&tag=go&tag=web&fav=1&later=1&domain=go.dev`.

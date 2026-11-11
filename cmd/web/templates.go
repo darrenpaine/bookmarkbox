@@ -33,6 +33,7 @@ type templateData struct {
 	User            *models.User
 	Viewer          *models.Viewer // the logged-in User's name and theme, or nil
 	BackURL         string         // where Back on the details page goes
+	TagSuggestions  []*models.Tag  // the User's Tags, most used first, for Tag autocomplete
 	BookmarkCount   int            // the User's Bookmarks, on the Account page
 	Import          *importPreview // an uploaded file waiting to be imported
 }

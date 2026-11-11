@@ -1,0 +1,13 @@
+{{/* The User's Tags, most used first, for the Tag fields' suggestions. A field
+     opts in with data-tag-suggest: "list" for a comma-separated field, "one"
+     for a field that adds one Tag. tags.js does the rest; without it, the
+     fields work as plain text. */}}
+{{define "tagsuggest"}}
+{{if .TagSuggestions}}
+<datalist id='tag-suggestions'>
+    {{range .TagSuggestions}}<option value='{{.Name}}' data-colour='{{colour .Name}}' data-count='{{.BookmarkCount}}'></option>
+    {{end}}
+</datalist>
+<script src='{{static "js/tags.js"}}' defer></script>
+{{end}}
+{{end}}
