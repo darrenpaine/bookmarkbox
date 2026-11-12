@@ -135,6 +135,9 @@
 
 html {
     -webkit-text-size-adjust: 100%;
+    /* Keep room for the scrollbar on short pages too, so the centred layout
+       doesn't move sideways between a long list and a short page */
+    scrollbar-gutter: stable;
 }
 
 body {
