@@ -23,6 +23,7 @@ BookmarkBox is a personal bookmark manager in Go, with Tags and Favourites. It h
 - A User can add, view, update and delete their Bookmarks, and mark them as Favourite or Read later.
 - Updating a Bookmark can change any of its details, including its URL and Tags. Changing the URL to match another of the Owner's Bookmarks is rejected as a Duplicate.
 - A Bookmark has a URL, title, description, notes, Tags and a favicon.
+- An address can be typed without `https://`, as in `bbc.co.uk`, and a mistyped `https:/` is mended.
 - A Bookmark can have many Tags. Tag names are trimmed and lower-cased.
 - A Tag exists only while at least one Bookmark uses it. It is removed automatically when its last Bookmark is deleted or stops using it, so there is no separate delete action for Tags.
 - The Tags field on the add and edit forms, and the Tag editor on a Bookmark's page, suggest the User's existing Tags as they type.

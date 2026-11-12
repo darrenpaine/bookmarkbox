@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/darrenpaine/bookmarkbox/internal/models"
+	"github.com/darrenpaine/bookmarkbox/internal/urls"
 	"github.com/darrenpaine/bookmarkbox/internal/validator"
 	"github.com/go-chi/chi/v5"
 )
@@ -118,13 +119,14 @@ func (app *application) bookmarkView(w http.ResponseWriter, r *http.Request) {
 	app.render(w, http.StatusOK, "view.tmpl", data)
 }
 
-// validate checks the form's fields, after trimming the URL and title.
+// validate checks the form's fields, after trimming the title and completing
+// the URL, so "bbc.co.uk" is saved as "https://bbc.co.uk".
 func (form *bookmarkForm) validate() {
-	form.URL = strings.TrimSpace(form.URL)
+	form.URL = urls.Complete(form.URL)
 	form.Title = strings.TrimSpace(form.Title)
 
 	form.CheckField(validator.NotBlank(form.URL), "url", "This field cannot be blank")
-	form.CheckField(validator.WebURL(form.URL), "url", "This must be a full http:// or https:// address")
+	form.CheckField(validator.WebURL(form.URL), "url", "Enter a web address, such as bbc.co.uk or https://bbc.co.uk")
 	form.CheckField(validator.MaxChars(form.URL, models.MaxURLChars), "url", tooLong(models.MaxURLChars))
 	form.CheckField(validator.NotBlank(form.Title), "title", "This field cannot be blank")
 	form.CheckField(validator.MaxChars(form.Title, models.MaxTitleChars), "title", tooLong(models.MaxTitleChars))

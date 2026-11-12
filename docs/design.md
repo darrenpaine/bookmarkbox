@@ -68,6 +68,15 @@ Every Bookmark method in `internal/models` takes the Owner's user ID and filters
 
 The rule prefers an occasional near-duplicate to wrongly merging two pages.
 
+### Typed addresses
+
+The add and edit forms complete an address before checking it, with `urls.Complete`, and the completed address is what is saved and shown again:
+- An address with no scheme gets `https://`, as in `bbc.co.uk`, `www.bbc.co.uk/news` or `//bbc.co.uk`. Its host must contain a dot, or be `localhost` or an IPv6 address, so a word typed by mistake is refused rather than saved as `https://word`.
+- A web scheme with the wrong slashes is mended: `https:/`, `https:`, `https:///`, `https:\\` and `https//` all become `https://`.
+- Any other scheme, such as `mailto:` or `javascript:`, is left alone for the validator to refuse.
+
+The field is `type='text'` with `inputmode='url'`, because a `type='url'` field makes the browser refuse `bbc.co.uk` before the server sees it. Imports aren't completed: a browser's export always has full addresses.
+
 ### Removing unused Tags
 
 The `tags_remove_unused` trigger deletes a Tag when its last row leaves `bookmark_tags`. Foreign key cascades fire it too, so it covers every way a Bookmark can lose a Tag, including routes added later. Chip colours will be derived from the Tag name, so nothing needs storing on a Tag.
