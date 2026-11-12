@@ -60,6 +60,11 @@ func MaxChars(value string, n int) bool {
 }
 
 // MinChars() returns true if a value contains no less than n characters.
+// MaxBytes reports whether value is at most n bytes long in UTF-8.
+func MaxBytes(value string, n int) bool {
+	return len(value) <= n
+}
+
 func MinChars(value string, n int) bool {
 	return utf8.RuneCountInString(value) >= n
 }

@@ -110,7 +110,7 @@ Options and early preparations for these are in [scaling.md](scaling.md).
 - Reset a forgotten password by email, with a command-line reset for self-hosters without email.
 - Scale to 1,000 and then 1,000,000 Users. This may mean Postgres, or a central database for Users with a SQLite file per User.
 - Keep Bookmarks confidential at scale, for example by encrypting each User's data with its own key.
-- A written threat model, with security checks in CI, before the public demo.
+- A written threat model, with security checks in CI, before the public demo. Done in step 7b: [threat model](threat-model.md). Keep it up to date as features are added.
 - Upgrades that don't surprise logged-in Users: notice of planned downtime as a banner and on login, a maintenance page during it, and upgrades without downtime at scale.
 
 ## Self-hosting
@@ -155,7 +155,7 @@ Options and early preparations for these are in [scaling.md](scaling.md).
 | 6b | **Tag autocomplete** on the add and edit forms | Done |
 | 7 | **Public demo** on Render; needs step 6 for its seed data | In progress |
 | 7a | **Rate limiting** on login, signup and password change, with the client IP from a trusted proxy | Done |
-| 7b | **Threat model,** with security checks in CI | Planned |
+| 7b | **Threat model,** with security checks in CI | Done |
 | 7c | **Demo mode:** reset, seed data, the Demo User and notices | Planned |
 | 7d | **Deploy** to Render | Planned |
 | 8 | **JSON API and tokens** | Planned |

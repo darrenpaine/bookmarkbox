@@ -171,6 +171,21 @@ func TestUserSignup(t *testing.T) {
 			wantFormTag:  formTag,
 		},
 		{
+			name:         "Password longer than 72 bytes",
+			userName:     validName,
+			userEmail:    validEmail,
+			userPassword: strings.Repeat("a", 73),
+			wantCode:     http.StatusUnprocessableEntity,
+			wantFormTag:  formTag,
+		},
+		{
+			name:         "Password of exactly 72 bytes",
+			userName:     validName,
+			userEmail:    validEmail,
+			userPassword: strings.Repeat("a", 72),
+			wantCode:     http.StatusSeeOther,
+		},
+		{
 			name:         "Empty password",
 			userName:     validName,
 			userEmail:    validEmail,
@@ -940,6 +955,16 @@ func TestUserChangePassword(t *testing.T) {
 			userPassword:    validPassword,
 			userNewPass:     "pa$$",
 			userConfirmPass: "pa$$",
+			wantCode:        http.StatusUnprocessableEntity,
+			wantFormTag:     formTag,
+		},
+		{
+			// bcrypt takes at most 72 bytes; é is two.
+			name:            "New password too long",
+			userEmail:       validEmail,
+			userPassword:    validPassword,
+			userNewPass:     strings.Repeat("é", 37),
+			userConfirmPass: strings.Repeat("é", 37),
 			wantCode:        http.StatusUnprocessableEntity,
 			wantFormTag:     formTag,
 		},

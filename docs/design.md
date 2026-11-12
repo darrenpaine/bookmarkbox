@@ -329,10 +329,19 @@ Posts to log in, sign up and change a password are limited to 10 a minute from e
 
 GitHub Actions runs on pull requests and pushes to `main`, with two jobs:
 
-- `go vet`, `staticcheck` and `go test -race`.
+- `go vet`, `staticcheck`, `govulncheck` and `go test -race`. govulncheck fails only on known vulnerabilities the code can reach.
 - `scripts/smoke-test.sh`, which builds the real image and tests it through Docker Compose: health check, non-root user, saving data, restart, shutdown, backup and restore.
 
 Images aren't published. Compose builds from the repository.
+
+Dependabot (`.github/dependabot.yml`) opens weekly pull requests for Go modules, grouped into one, GitHub Actions, and the Dockerfile's base images.
+
+### Security
+
+[threat-model.md](threat-model.md) lists the threats and their defences, and [SECURITY.md](../SECURITY.md) says how to report a vulnerability, through GitHub's private vulnerability reporting.
+
+- Passwords are bcrypt hashes at cost 12. bcrypt takes at most 72 bytes, so longer passwords are refused at signup and password change rather than cut short.
+- An unknown email at login is checked against a dummy hash, so it takes as long as a wrong password.
 
 ### Logging
 
