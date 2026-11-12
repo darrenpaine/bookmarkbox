@@ -94,6 +94,7 @@ browser ──HTTPS──► proxy (Caddy, nginx, Render) ──HTTP──► ap
 | Filling the disk | Limits on Users, Bookmarks per User and Tags per User, and on every text field. Bookmarks and Tags are unlimited by default when self-hosted, where every User is trusted | Mitigated |
 | Expensive list queries | At most 10 Tag filters, searches of 200 characters, and a cap on search words | Mitigated |
 | The demo deployed with a limit left unlimited, or with every visitor sharing one rate limit | With `DEMO_MODE` on, start-up fails if a limit is `0` or `CLIENT_IP_HEADER` is unset | Mitigated |
+| Render passing on a client's own `True-Client-IP`, so visitors can dodge the demo's rate limit | Checked after deploying, by sending a fake header ([demo](demo.md#check-the-client-ip)) | Open |
 | A self-hoster turns on `DEMO_MODE` and loses their data | Off by default, and [self-hosting](self-hosting.md#settings) says to leave it unset | Mitigated |
 | Bots taking all 25 demo signups | The Demo login still works, and the data resets every day. A full demo's signup page says so and shows the Demo login | Accepted |
 
