@@ -154,13 +154,12 @@ Options and early preparations for these are in [scaling.md](scaling.md).
 | 6 | **Import and export,** with round-trip tests | Done |
 | 6a | **Theme switch:** dark, light or system on the Account page, and an Account icon in the nav on small screens | Done |
 | 6b | **Tag autocomplete** on the add and edit forms | Done |
-| 7 | **Public demo** on Render; needs step 6 for its seed data | In progress |
+| 7 | **Public demo** on Render; needs step 6 for its seed data | Done |
 | 7a | **Rate limiting** on login, signup and password change, with the client IP from a trusted proxy | Done |
 | 7b | **Threat model,** with security checks in CI | Done |
 | 7c | **Demo mode:** reset, seed data, the Demo User and notices | Done |
-| 7d | **Deploy** to Render | In progress |
+| 7d | **Deploy** to Render | Done |
 | 8 | **JSON API and tokens** | Planned |
 | 9 | **Browser extension:** popup, then right-click, then direct import | Planned |
 | 10 | **Background metadata and favicons** | Planned |
 
-README still to finish: screenshot, an architecture paragraph, and a "Design decisions" section linking to the ADRs.

@@ -6,6 +6,19 @@ Based on the 'SnippetBox' project from ["Let's Go" by Alex Edwards](https://lets
 
 [![CI Status](https://github.com/darrenpaine/bookmarkbox/actions/workflows/ci.yml/badge.svg)](https://github.com/darrenpaine/bookmarkbox/actions/workflows/ci.yml)
 
+**Try the demo: [bookmarkbox.onrender.com](https://bookmarkbox.onrender.com).** Log in as the shared Demo account, or sign up. It runs on a free tier that sleeps when idle, so the first visit can take about a minute. Everything is deleted every 24 hours, so don't use a real password.
+
+![The Demo account's bookmark list, with tags, stars and filters](docs/img/screenshot.png)
+
+### How it works
+One Go binary serves server-rendered HTML pages, using Chi for routing and `html/template`, with htmx for in-place updates such as starring and live search. Everything is stored in one SQLite file, through the pure-Go `modernc.org/sqlite` driver, including sessions and a full-text search index. Migrations, templates, CSS and fonts are embedded in the binary, so a release is a single static executable in a small Docker image. All SQL sits behind interfaces in `internal/models`, so handler tests run against mocks, and model tests use a temporary SQLite file. The [design](docs/design.md) covers each part.
+
+### Design decisions
+- [SQLite everywhere, with an ephemeral demo](docs/adr/0001-sqlite-with-an-ephemeral-demo.md)
+- [Multi-user with private Bookmarks and no sharing](docs/adr/0002-multi-user-with-private-bookmarks.md)
+- [The API uses bearer tokens and bypasses cross-origin protection](docs/adr/0003-api-bearer-tokens.md)
+- [Browser Folders become flat Tags](docs/adr/0004-folders-become-flat-tags.md)
+
 ### Updates
 - Change to use the Chi router (clearer routes and middleware setup)
 - Use native CORS protection included in Go 1.25+
@@ -29,9 +42,9 @@ Based on the 'SnippetBox' project from ["Let's Go" by Alex Edwards](https://lets
 - A [threat model](docs/threat-model.md), `govulncheck` in CI, weekly Dependabot updates, and a [security policy](SECURITY.md)
 - Type an address without `https://`, such as `bbc.co.uk`, and it is completed for you
 - Demo mode: a shared Demo account seeded with public links, a daily reset, and notices that the data is wiped
+- A [live demo](https://bookmarkbox.onrender.com) on Render's free tier, deployed from `render.yaml` once CI passes
 
 ### Next steps
-- Live demo on Render, with seeded data that resets regularly
 - JSON API with personal API tokens
 - Browser extension to save the current page, plus a right-click menu option
 - Fetch page titles, descriptions and favicons in the background
