@@ -3,8 +3,10 @@ package models
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/darrenpaine/bookmarkbox/internal/assert"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestUserModelViewer(t *testing.T) {
@@ -95,4 +97,30 @@ func TestUserLimit(t *testing.T) {
 		assert.Equal(t, open, true)
 		assert.NilError(t, m.Insert("Dan", "dan@example.com", "pa$$word"))
 	})
+}
+
+// An email with no account takes as long to refuse as a wrong password, so
+// timing the login form doesn't show who has an account.
+func TestUserModelAuthenticateTiming(t *testing.T) {
+	if testing.Short() {
+		t.Skip("models: skipping integration DB tests")
+	}
+	cost, err := bcrypt.Cost(dummyHash)
+	assert.NilError(t, err)
+	assert.Equal(t, cost, bcryptCost)
+
+	m := UserModel{DB: newTestDB(t)}
+	timed := func(email string) time.Duration {
+		start := time.Now()
+		_, err := m.Authenticate(email, "wrong-password")
+		assert.Equal(t, errors.Is(err, ErrInvalidCredentials), true)
+		return time.Since(start)
+	}
+	known := timed("alice@example.com")
+	unknown := timed("nobody@example.com")
+	// bcrypt at cost 12 takes hundreds of milliseconds; skipping it, under a
+	// millisecond. Half is a wide margin for a busy machine.
+	if unknown < known/2 {
+		t.Errorf("unknown email took %v, a wrong password %v", unknown, known)
+	}
 }

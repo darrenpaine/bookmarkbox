@@ -13,7 +13,7 @@ These cost little while the app is small, and are expensive to retrofit:
 5. **Keep shared state behind interfaces.** Sessions (the `scs` store), rate limits and the pending import are per-server today. More than one app server needs them in a shared store.
 6. **Make background work a queue, not a goroutine.** Step 10's metadata fetch should record its jobs in the database, so that they survive a restart and can later move to separate workers.
 7. **Share favicons between Users.** A favicon belongs to a site, not to a User, so step 10 should store each one once in a shared table keyed by host, rather than a copy on every Bookmark. Many Users saving the same site then need one fetch and one copy. Each User still sees only the favicons of their own Bookmarks. With a database per User, the shared table sits in the central database or in object storage behind a cache.
-8. **Write the threat model before the public demo (step 7).** That is the first time strangers can reach the app. See [Hardening](#hardening-and-devsecops).
+8. **Write the threat model before the public demo (step 7).** That is the first time strangers can reach the app. Done: [threat-model.md](threat-model.md). See [Hardening](#hardening-and-devsecops) for what wider use adds.
 9. **Write migrations that the previous release can live with.** Add before removing: a new column is added in one release and the old one dropped in a later one, so an upgrade can be rolled back by running the previous image. See [Upgrades and migrations](#upgrades-and-migrations).
 
 ## Sign in with Google or Microsoft

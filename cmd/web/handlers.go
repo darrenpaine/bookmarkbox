@@ -538,6 +538,10 @@ func (app *application) tagRenamePost(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/tags", http.StatusSeeOther)
 }
 
+// passwordTooLong explains the bcrypt limit. It counts bytes, so letters
+// outside A to Z use up more than one.
+const passwordTooLong = "The password must be 72 characters or fewer (fewer with accented letters or symbols)"
+
 // Show a form to create a user
 func (app *application) userSignupShowForm(w http.ResponseWriter, r *http.Request) {
 	open, err := app.users.SignupOpen()
@@ -583,6 +587,7 @@ func (app *application) userSignupPost(w http.ResponseWriter, r *http.Request) {
 	form.CheckField(validator.Matches(form.Email, validator.EmailRX), "email", "Invalid email address")
 	form.CheckField(validator.NotBlank(form.Password), "password", "This field cannot be blank")
 	form.CheckField(validator.MinChars(form.Password, 8), "password", "The password must contain at least 8 characters")
+	form.CheckField(validator.MaxBytes(form.Password, models.MaxPasswordBytes), "password", passwordTooLong)
 	// form.CheckField(validator.UniqueEmail(form.Email), "email", "Email address already in use")
 	if !form.Valid() {
 		data := app.newTemplateData(r)
@@ -765,6 +770,7 @@ func (app *application) userPasswordPost(w http.ResponseWriter, r *http.Request)
 	form.CheckField(validator.NotBlank(form.NewPassword), "new_password", "This field cannot be blank")
 	form.CheckField(validator.NotBlank(form.ConfirmPassword), "confirm_password", "This field cannot be blank")
 	form.CheckField(validator.MinChars(form.NewPassword, 8), "new_password", "The password must contain at least 8 characters")
+	form.CheckField(validator.MaxBytes(form.NewPassword, models.MaxPasswordBytes), "new_password", passwordTooLong)
 	form.CheckField(validator.Equal(form.ConfirmPassword, form.NewPassword), "confirm_password", "Passwords do not match")
 	if !form.Valid() {
 		data := app.newTemplateData(r)

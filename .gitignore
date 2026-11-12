@@ -9,4 +9,5 @@
 # does not ignore the README.md file or the project docs
 !README.md
 !GLOSSARY.md
+!SECURITY.md
 !docs/**/*.md

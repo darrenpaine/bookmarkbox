@@ -9,6 +9,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// bcryptCost is the work factor for password hashes.
+const bcryptCost = 12
+
+// MaxPasswordBytes is the longest password bcrypt takes. Longer ones are
+// refused rather than cut short.
+const MaxPasswordBytes = 72
+
+// dummyHash is compared against when an email has no account. It is a hash
+// of a password no account has, at bcryptCost.
+var dummyHash = []byte("$2a$12$KXmL2L8Ixzv0fDWHW5rVfO7n1d1c7KMYDBPX3dRO1WkT1IROHXAKi")
+
 // Base interface for UserModel
 type UserModelInterface interface {
 	Insert(name, email, password string) error
@@ -72,7 +83,7 @@ func (m *UserModel) SignupOpen() (bool, error) {
 // ErrUserLimit if signup is full.
 func (m *UserModel) Insert(name, email, password string) error {
 	// Create a bcrypt hash of the plain-text password.
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), 12)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
 		return err
 	}
@@ -112,6 +123,9 @@ func (m *UserModel) Authenticate(email, password string) (int, error) {
 	err := m.DB.QueryRow(stmt, email).Scan(&id, &hashedPassword)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			// Take as long as a wrong password would, so the time taken
+			// doesn't show which emails have an account.
+			bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
 			return 0, ErrInvalidCredentials
 		} else {
 			return 0, err
@@ -202,7 +216,7 @@ func (m *UserModel) PasswordUpdate(id int, currentPassword, newPassword string) 
 		}
 	}
 
-	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), 12)
+	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcryptCost)
 	if err != nil {
 		return err
 	}

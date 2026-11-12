@@ -52,6 +52,14 @@ bookmarks.example.com {
 }
 ```
 
+To have browsers always use HTTPS for your site, even on a first visit typed without `https://`, add HSTS inside the site block:
+
+```
+    header Strict-Transport-Security "max-age=31536000"
+```
+
+Only do this once HTTPS works, since browsers then refuse plain HTTP for a year.
+
 Keep the default `BIND_ADDRESS` and `COOKIE_SECURE`, and add this to `.env`:
 
 ```bash
