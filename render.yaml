@@ -1,0 +1,28 @@
+# The public demo on Render's free tier. docs/demo.md has the steps.
+# The data is deleted at every deploy, restart and spin-down, and every 24
+# hours, so the service has no disk and no secrets.
+services:
+  - type: web
+    name: bookmarkbox
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /ping
+    branch: main
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: DEMO_MODE
+        value: "true"
+      - key: MAX_USERS
+        value: "25"
+      - key: MAX_BOOKMARKS_PER_USER
+        value: "300"
+      - key: MAX_TAGS_PER_USER
+        value: "300"
+      - key: CLIENT_IP_HEADER
+        value: True-Client-IP
+      - key: DATABASE_PATH
+        value: /data/bookmarkbox.db
+      - key: GOMEMLIMIT
+        value: 400MiB

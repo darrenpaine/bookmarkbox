@@ -158,7 +158,7 @@ Options and early preparations for these are in [scaling.md](scaling.md).
 | 7a | **Rate limiting** on login, signup and password change, with the client IP from a trusted proxy | Done |
 | 7b | **Threat model,** with security checks in CI | Done |
 | 7c | **Demo mode:** reset, seed data, the Demo User and notices | Done |
-| 7d | **Deploy** to Render | Planned |
+| 7d | **Deploy** to Render | In progress |
 | 8 | **JSON API and tokens** | Planned |
 | 9 | **Browser extension:** popup, then right-click, then direct import | Planned |
 | 10 | **Background metadata and favicons** | Planned |

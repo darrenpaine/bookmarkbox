@@ -310,9 +310,10 @@ On SIGTERM or an interrupt the app stops accepting connections, lets requests in
 
 ### Public demo
 
-Demo mode is built; deploying it to Render is step 7d. Render's free web service runs the same image with `DEMO_MODE=true`, `MAX_USERS=25`, `MAX_BOOKMARKS_PER_USER=300` and `MAX_TAGS_PER_USER=300`. Render figures were checked on 2026-11-03 and 2026-11-04 and should be rechecked before deploying.
+The demo is the same image on Render's free web service, set up by `render.yaml` with `DEMO_MODE=true`, `MAX_USERS=25`, `MAX_BOOKMARKS_PER_USER=300` and `MAX_TAGS_PER_USER=300`. [demo.md](demo.md) has the steps to deploy and check it. Render's figures were rechecked on 2026-11-12.
 
-- Render's free filesystem is lost on every redeploy, restart or spin-down, and a service spins down after 15 minutes without traffic ([ADR 1](adr/0001-sqlite-with-an-ephemeral-demo.md)). Waking takes about a minute.
+- Render's free filesystem is lost on every redeploy, restart or spin-down, and a service spins down after 15 minutes without traffic ([ADR 1](adr/0001-sqlite-with-an-ephemeral-demo.md)). Waking takes about a minute. Render may also restart a free service at any time. Each of these is a reset.
+- Free services can't have a disk, so the database lives in the image's `/data`, which the smoke test checks is writable without a volume.
 - **Start-up checks:** with `DEMO_MODE` on, start-up fails if any limit is `0` (unlimited) or `CLIENT_IP_HEADER` is unset. A forgotten setting would otherwise leave the public demo unlimited, or put every visitor behind one rate limit.
 - **Reset:** at start-up, then every 24 hours from start-up, because steady traffic could stop the service spinning down. A failed timed reset is logged and the next one tried as usual; a failed start-up reset stops the app.
   - One transaction deletes every User and session, so cascades remove all Bookmarks, Tags and pending imports. It then recreates the Demo User and imports the seed through the real importer. Everyone is logged out.
