@@ -34,6 +34,11 @@
         </form>
     </div>
     {{else}}
+    {{if .Demo}}
+    <p class='notice'>This is a public demo. Your file stays private to your
+        account and is deleted at the next reset, but don't upload anything
+        sensitive.</p>
+    {{end}}
     <p class='import-intro'>Export your bookmarks from your browser as an HTML file, then choose it here. You'll see what it holds before anything is saved.</p>
     <form action='/account/import' method='POST' enctype='multipart/form-data'>
         {{range .Form.NonFieldErrors}}

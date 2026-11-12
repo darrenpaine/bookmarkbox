@@ -2,6 +2,14 @@
 {{define "main"}}
 <div class='narrow'>
     <h1>Sign up</h1>
+    {{if .Demo}}
+    <div class='notice'>
+        <p>Your account and bookmarks are deleted every 24 hours, and whenever
+            the server restarts.</p>
+        <p><strong>Don't use a real password.</strong> Any email-shaped text
+            works, such as you@example.com. Nothing is ever sent to it.</p>
+    </div>
+    {{end}}
     <form action='/user/signup' method='POST' novalidate>
         {{range .Form.NonFieldErrors}}
         <p class='form-error'>{{.}}</p>

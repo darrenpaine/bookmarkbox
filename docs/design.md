@@ -279,6 +279,7 @@ Environment variables set the defaults, and flags override them for local use. A
 | `MAX_BOOKMARKS_PER_USER` | `-max-bookmarks` | `0` | `0` is unlimited |
 | `MAX_TAGS_PER_USER` | `-max-tags` | `0` | `0` is unlimited |
 | `CLIENT_IP_HEADER` | `-client-ip-header` | unset | Header a trusted proxy puts the client's IP address in; see [Rate limiting](#rate-limiting) |
+| `DEMO_MODE` | `-demo` | `false` | Run the [public demo](#public-demo), which deletes all data at start-up and every day |
 
 - `-debug` shows stack traces in the browser. It is for local use and has no environment variable.
 - The app takes a file path rather than a DSN, and always adds the foreign key, WAL, busy timeout and immediate transaction settings, so they can't be left out by accident.
@@ -290,7 +291,6 @@ Environment variables set the defaults, and flags override them for local use. A
 |---|---|---|
 | `CORS_ORIGINS` | unset | Origins allowed to call `/api` |
 | `FETCH_ALLOW_PRIVATE` | `false` | Let metadata fetching reach private addresses |
-| `DEMO_MODE` | `false` | Turn on the demo behaviour below |
 
 ## Deployment
 
@@ -308,15 +308,22 @@ Environment variables set the defaults, and flags override them for local use. A
 
 On SIGTERM or an interrupt the app stops accepting connections, lets requests in progress finish for up to 8 seconds, then closes the database, which checkpoints the WAL file. Docker kills a container 10 seconds after asking it to stop, so the limit sits below that.
 
-### Public demo (Planned)
+### Public demo
 
-Render's free web service runs the same image with `DEMO_MODE=true`, `MAX_USERS=25`, `MAX_BOOKMARKS_PER_USER=300` and `MAX_TAGS_PER_USER=300`. Render figures were checked on 2026-11-03 and 2026-11-04 and should be rechecked before deploying.
+Demo mode is built; deploying it to Render is step 7d. Render's free web service runs the same image with `DEMO_MODE=true`, `MAX_USERS=25`, `MAX_BOOKMARKS_PER_USER=300` and `MAX_TAGS_PER_USER=300`. Render figures were checked on 2026-11-03 and 2026-11-04 and should be rechecked before deploying.
 
 - Render's free filesystem is lost on every redeploy, restart or spin-down, and a service spins down after 15 minutes without traffic ([ADR 1](adr/0001-sqlite-with-an-ephemeral-demo.md)). Waking takes about a minute.
-- A timer also resets the data every 24 hours, because steady traffic could stop the service spinning down.
-- A reset wipes all Users, Bookmarks and sessions, then recreates the Demo User and loads an embedded public bookmark file through the real importer.
-- The seed of about 200 Bookmarks stays below the limits of 300 Bookmarks and 300 Tags, leaving room for visitors.
-- Handlers block password changes and token creation for the Demo User.
+- **Start-up checks:** with `DEMO_MODE` on, start-up fails if any limit is `0` (unlimited) or `CLIENT_IP_HEADER` is unset. A forgotten setting would otherwise leave the public demo unlimited, or put every visitor behind one rate limit.
+- **Reset:** at start-up, then every 24 hours from start-up, because steady traffic could stop the service spinning down. A failed timed reset is logged and the next one tried as usual; a failed start-up reset stops the app.
+  - One transaction deletes every User and session, so cascades remove all Bookmarks, Tags and pending imports. It then recreates the Demo User and imports the seed through the real importer. Everyone is logged out.
+  - The Demo User's ID is kept in memory after each reset, to recognise it.
+- **Seed:** `internal/demo/seed.html` is an embedded browser bookmark file of 232 public links. Its Folders become about 30 Tags, and some links are starred, marked Read later, or have a description or notes. It stays below the limits of 300 Bookmarks and 300 Tags, leaving room for visitors.
+  - At each reset the dates move forward, so the newest is the moment of the reset and the rest keep their spacing over the year before. The file keeps realistic fixed dates.
+- **Demo User:** "Demo", `demo@example.com`, password `demo-password-1`. These are constants rather than secrets, because the home page shows them. `example.com` is reserved, so the address reaches nobody.
+  - The logged-out home page has a "Try the demo" box with the login and a **Log in as Demo** button, and the login page shows the same above its form. The button is a form with hidden fields posting to `/user/login`, since the CSP allows no inline script, so it is rate limited like any login.
+  - Its password can't be changed: the Account page explains why instead of offering the button, and both password routes answer 403. Token creation will be blocked the same way in step 8. Its theme, import, export, edits and deletes stay allowed, and the next reset undoes them.
+- **Notices:** a banner on every page says the data is deleted every 24 hours and on restart, and links to the repository. The signup page says not to use a real password and that any email-shaped text works. The import page warns against uploading anything sensitive. When the 25 places are taken, the signup page says the demo is full and shows the Demo login.
+- **HSTS:** every response sends `Strict-Transport-Security: max-age=31536000`, without `includeSubDomains`, which would cover all of `onrender.com`. Only demo mode sends it, since a self-hoster on plain HTTP would be locked out; they set it at their proxy.
 
 ### Rate limiting
 

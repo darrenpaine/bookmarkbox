@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/darrenpaine/bookmarkbox/internal/demo"
 	"github.com/darrenpaine/bookmarkbox/internal/models"
 	"github.com/go-playground/form/v4"
 )
@@ -120,6 +121,9 @@ func (app *application) newTemplateData(r *http.Request) *templateData {
 		data.Flash = message
 		data.FlashIsError = true
 	}
+	if app.demoMode {
+		data.Demo = &demoData{Email: demo.Email, Password: demo.Password, IsDemoUser: app.isDemoUser(r)}
+	}
 	// Only logged-out pages show the Signup link. A failed check just hides it.
 	if !data.IsAuthenticated {
 		open, err := app.users.SignupOpen()
@@ -166,6 +170,12 @@ func (app *application) isAuthenticated(r *http.Request) bool {
 		return false
 	}
 	return isAuthenticated
+}
+
+// isDemoUser reports whether the viewer is the demo's shared Demo User.
+func (app *application) isDemoUser(r *http.Request) bool {
+	id := app.authenticatedUserID(r)
+	return app.demoMode && id != 0 && id == int(app.demoUserID.Load())
 }
 
 // The ID of the logged-in user, or 0 if nobody is logged in.

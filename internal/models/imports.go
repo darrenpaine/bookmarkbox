@@ -308,6 +308,19 @@ func (m *BookmarkModel) Import(userID int, items []ImportItem) (*ImportSummary, 
 	}
 	defer tx.Rollback() // no-op after Commit
 
+	summary, err := m.ImportTx(ctx, tx, userID, items)
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(); err != nil {
+		return nil, err
+	}
+	return summary, nil
+}
+
+// ImportTx is Import inside a transaction the caller commits, so an import
+// can be one part of a larger change, such as the demo reset.
+func (m *BookmarkModel) ImportTx(ctx context.Context, tx *sql.Tx, userID int, items []ImportItem) (*ImportSummary, error) {
 	// Planned inside the transaction, which holds the write lock, so the
 	// counts can't change before the import is saved.
 	p, err := m.planImport(ctx, tx, userID, items)
@@ -362,9 +375,6 @@ func (m *BookmarkModel) Import(userID int, items []ImportItem) (*ImportSummary, 
 				return nil, err
 			}
 		}
-	}
-	if err = tx.Commit(); err != nil {
-		return nil, err
 	}
 	return &p.summary, nil
 }

@@ -82,13 +82,6 @@ func (m *UserModel) SignupOpen() (bool, error) {
 // Add a new record to the "users" table. Returns ErrDuplicateEmail, or
 // ErrUserLimit if signup is full.
 func (m *UserModel) Insert(name, email, password string) error {
-	// Create a bcrypt hash of the plain-text password.
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
-	if err != nil {
-		return err
-	}
-	stmt := `INSERT INTO users (name, email, hashed_password, created)
-             VALUES(?, ?, ?, ?)`
 	ctx := context.Background()
 	tx, err := m.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -96,12 +89,7 @@ func (m *UserModel) Insert(name, email, password string) error {
 	}
 	defer tx.Rollback() // no-op after Commit
 
-	_, err = tx.ExecContext(ctx, stmt, name, email, string(hashedPassword), time.Now().UTC())
-	if err != nil {
-		// The email column is UNIQUE (and case-insensitive).
-		if isUniqueViolation(err, "users.email") {
-			return ErrDuplicateEmail
-		}
+	if _, err = InsertUserTx(ctx, tx, name, email, password); err != nil {
 		return err
 	}
 	over, err := overLimit(ctx, tx, m.MaxUsers, "SELECT count(*) FROM users")
@@ -112,6 +100,39 @@ func (m *UserModel) Insert(name, email, password string) error {
 		return ErrUserLimit
 	}
 	return tx.Commit()
+}
+
+// InsertUserTx adds a User inside a transaction the caller commits, and
+// returns its ID. It doesn't check the User limit. Returns ErrDuplicateEmail
+// if the email is taken.
+func InsertUserTx(ctx context.Context, tx *sql.Tx, name, email, password string) (int, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	if err != nil {
+		return 0, err
+	}
+	var id int
+	err = tx.QueryRowContext(ctx,
+		`INSERT INTO users (name, email, hashed_password, created) VALUES (?, ?, ?, ?) RETURNING id`,
+		name, email, string(hashedPassword), time.Now().UTC()).Scan(&id)
+	if err != nil {
+		// The email column is UNIQUE (and case-insensitive).
+		if isUniqueViolation(err, "users.email") {
+			return 0, ErrDuplicateEmail
+		}
+		return 0, err
+	}
+	return id, nil
+}
+
+// DeleteEveryoneTx removes every User and session, inside a transaction the
+// caller commits. Each User's Bookmarks, Tags and pending import go with them.
+func DeleteEveryoneTx(ctx context.Context, tx *sql.Tx) error {
+	for _, stmt := range []string{"DELETE FROM sessions", "DELETE FROM users"} {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Check if the credentials match a user.

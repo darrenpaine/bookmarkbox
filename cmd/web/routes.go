@@ -10,6 +10,9 @@ import (
 // The routes() method returns a servemux containing the application routes.
 func (app *application) routes() http.Handler {
 	app.router.Use(secureHeaders)
+	if app.demoMode {
+		app.router.Use(hsts)
+	}
 	app.router.Use(app.logRequest)
 	app.router.Use(app.recoverPanic)
 

@@ -10,4 +10,14 @@
             href='/user/login'>Log in</a>
     </p>
 </section>
+{{with .Demo}}
+<section class='welcome demo-box' aria-labelledby='demo-title'>
+    <h2 id='demo-title'>Try the demo</h2>
+    <p>Log in to the shared Demo account to explore about 200 bookmarks.
+        Anyone can change them, and they're put back every day.</p>
+    {{template "demologin" .}}
+    <p class='demo-own'>Like it? <a
+            href='https://github.com/darrenpaine/bookmarkbox/blob/main/docs/self-hosting.md'>Run your own</a>.</p>
+</section>
+{{end}}
 {{end}}

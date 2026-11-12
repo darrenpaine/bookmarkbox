@@ -1,8 +1,15 @@
 {{define "title"}}Signup closed{{end}}
 {{define "main"}}
 <div class='narrow'>
+    {{with .Demo}}
+    <h1>The demo is full</h1>
+    <p>All of the demo's accounts are taken. Log in to the shared Demo
+        account instead, or come back after the daily reset.</p>
+    {{template "demologin" .}}
+    {{else}}
     <h1>Signup is closed</h1>
     <p>This <b>bookmarkbox</b> isn't accepting new accounts.
         If you already have one, <a href='/user/login'>log in</a>.</p>
+    {{end}}
 </div>
 {{end}}

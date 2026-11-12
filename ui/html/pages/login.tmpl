@@ -2,6 +2,12 @@
 {{define "main"}}
 <div class='narrow'>
     <h1>Log in</h1>
+    {{with .Demo}}
+    <div class='notice'>
+        <p>To look around, log in to the shared Demo account.</p>
+        {{template "demologin" .}}
+    </div>
+    {{end}}
     <form action='/user/login' method='POST' novalidate>
         {{range .Form.NonFieldErrors}}
         <p class='form-error'>{{.}}</p>

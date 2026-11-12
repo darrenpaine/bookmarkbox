@@ -429,6 +429,56 @@ footer {
     border-left-color: var(--accent);
 }
 
+/* The public demo */
+
+.demo-banner {
+    margin: 0;
+    padding: 6px var(--gutter);
+    background: var(--accent-soft);
+    color: var(--ink);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.demo-box {
+    margin-top: 16px;
+}
+
+.demo-box h2 {
+    margin-top: 0;
+}
+
+.demo-login {
+    margin: 16px 0;
+}
+
+.demo-own {
+    margin: 16px 0 0;
+    color: var(--muted);
+}
+
+/* Something to read before using a form */
+.notice {
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--t6);
+    border-radius: var(--radius);
+}
+
+.notice p {
+    margin: 0;
+}
+
+.notice p + p {
+    margin-top: 8px;
+}
+
+.notice .demo-login {
+    margin: 12px 0;
+}
+
 .empty,
 .welcome {
     padding: 32px 24px;

@@ -1,0 +1,25 @@
+{{/* The public demo's notices and its shared login. */}}
+
+{{define "demobanner"}}
+<p class='demo-banner'>This is a public demo. Everything is deleted every
+    24 hours and whenever the server restarts.
+    <a href='https://github.com/darrenpaine/bookmarkbox'>Run your own</a></p>
+{{end}}
+
+{{/* The Demo User's login, shown so visitors can also type it elsewhere.
+     The button posts the real login form, so it is rate limited like any other. */}}
+{{define "demologin"}}
+<dl class='details demo-login'>
+    <dt>Email</dt>
+    <dd>{{.Email}}</dd>
+    <dt>Password</dt>
+    <dd>{{.Password}}</dd>
+</dl>
+<form action='/user/login' method='POST'>
+    <input type='hidden' name='email' value='{{.Email}}'>
+    <input type='hidden' name='password' value='{{.Password}}'>
+    <button class='button primary'>Log in as Demo</button>
+</form>
+{{end}}
+
+{{define "demopasswordfixed"}}The demo account's password can't be changed, since everyone shares it.{{end}}

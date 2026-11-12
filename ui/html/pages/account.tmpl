@@ -12,7 +12,11 @@
         <dt>Joined</dt>
         <dd>{{humanDate .Created}}</dd>
     </dl>
+    {{if and $.Demo $.Demo.IsDemoUser}}
+    <p>{{template "demopasswordfixed"}}</p>
+    {{else}}
     <p><a class='button' href='/account/password/update'>Change password</a></p>
+    {{end}}
     {{end}}
 
     <h2 id='appearance'>Appearance</h2>

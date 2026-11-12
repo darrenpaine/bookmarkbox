@@ -7,7 +7,7 @@ Each threat has a status:
 - **Accepted:** not defended, for the reason given.
 - **Open:** to be done, with when.
 
-Reviewed for step 7b, before the public demo ([roadmap](requirements.md#roadmap)).
+Reviewed for step 7b, before the public demo, and updated for demo mode in step 7c ([roadmap](requirements.md#roadmap)).
 
 ## What is protected
 
@@ -49,7 +49,7 @@ browser ──HTTPS──► proxy (Caddy, nginx, Render) ──HTTP──► ap
 | `COOKIE_SECURE=false` on a home network sends the cookie over plain HTTP | Only for a network the self-hoster trusts; the docs say not to use it when reachable from the internet | Accepted |
 | Session fixation | The session token is renewed at login and logout | Mitigated |
 | A stolen session survives a password change | Sessions aren't tied to the User in the store, so a password change can't end the others | Open: with password reset ([scaling](scaling.md)) |
-| A visitor changes the shared Demo User's password | The handler refuses it in demo mode | Open: step 7c |
+| A visitor changes the shared Demo User's password | Both password routes answer 403 for the Demo User, and the Account page offers no button | Mitigated |
 
 ### Tampering: changing what isn't yours
 
@@ -61,6 +61,7 @@ browser ──HTTPS──► proxy (Caddy, nginx, Render) ──HTTP──► ap
 | Clickjacking | CSP `frame-ancestors 'none'` and `X-Frame-Options: deny` | Mitigated |
 | Open redirect through a `next` or login target | Only paths on this site are followed (`safeNext`) | Mitigated |
 | A crafted bookmark file | A streaming tokenizer, at most 20 MB, the same text and count limits as forms, and a preview before anything is saved. An unconfirmed import expires after an hour | Mitigated |
+| A demo visitor changes or fills the shared Demo User's Bookmarks, or leaves something offensive for others to see | Allowed, so the demo shows everything. Every page says the data is wiped, and the next reset restores the seed | Accepted |
 | An exported file that runs script when opened | Titles, URLs and Tags are HTML-escaped in the export | Mitigated |
 
 ### Repudiation: denying what was done
@@ -80,7 +81,7 @@ browser ──HTTPS──► proxy (Caddy, nginx, Render) ──HTTP──► ap
 | Opening a Bookmark tells its site which list or search it was opened from | `Referrer-Policy: origin-when-cross-origin` sends other sites only the origin | Mitigated |
 | Stack traces shown to visitors | Only with the `-debug` flag, which has no environment variable | Mitigated |
 | Searches appear in the request log, as part of the address | Logs stay with the operator. On the demo, Render keeps them | Accepted |
-| A first visit over plain HTTP can be intercepted before the redirect to HTTPS | HSTS: on the demo from step 7c; self-hosters set it at their proxy ([self-hosting](self-hosting.md#https-with-a-reverse-proxy)) | Open: step 7c |
+| A first visit over plain HTTP can be intercepted before the redirect to HTTPS | HSTS for a year on the demo, without `includeSubDomains`. Self-hosters set it at their proxy ([self-hosting](self-hosting.md#https-with-a-reverse-proxy)) | Mitigated |
 | The database file and backups aren't encrypted | They stay on the operator's machine, and passwords are bcrypt hashes | Accepted |
 
 ### Denial of service: making it unusable
@@ -92,7 +93,9 @@ browser ──HTTPS──► proxy (Caddy, nginx, Render) ──HTTP──► ap
 | Large or slow requests | Forms are limited to 1 MB and imports to 20 MB. The server's read timeout is 5 seconds, write 10, idle 60 | Mitigated |
 | Filling the disk | Limits on Users, Bookmarks per User and Tags per User, and on every text field. Bookmarks and Tags are unlimited by default when self-hosted, where every User is trusted | Mitigated |
 | Expensive list queries | At most 10 Tag filters, searches of 200 characters, and a cap on search words | Mitigated |
-| Bots taking all 25 demo signups | The Demo login still works, and the data resets every day | Accepted (step 7c explains it on the signup page) |
+| The demo deployed with a limit left unlimited, or with every visitor sharing one rate limit | With `DEMO_MODE` on, start-up fails if a limit is `0` or `CLIENT_IP_HEADER` is unset | Mitigated |
+| A self-hoster turns on `DEMO_MODE` and loses their data | Off by default, and [self-hosting](self-hosting.md#settings) says to leave it unset | Mitigated |
+| Bots taking all 25 demo signups | The Demo login still works, and the data resets every day. A full demo's signup page says so and shows the Demo login | Accepted |
 
 ### Elevation of privilege: getting more access
 
@@ -108,9 +111,6 @@ browser ──HTTPS──► proxy (Caddy, nginx, Render) ──HTTP──► ap
 
 | Item | When |
 |---|---|
-| Block password change for the Demo User | Step 7c |
-| HSTS on the demo | Step 7c |
-| Explain a full demo signup, and point to the Demo login | Step 7c |
 | End a User's other sessions when their password changes | With password reset |
 | Hide whether an email has an account at signup | With email confirmation |
 | Read-only container file system | A later self-hosting update |

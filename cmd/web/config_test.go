@@ -60,6 +60,7 @@ func TestParseConfigRejectsInvalidValues(t *testing.T) {
 		{name: "Negative flag", args: []string{"-max-tags=-1"}},
 		{name: "Client IP header with a space", env: map[string]string{"CLIENT_IP_HEADER": "X Forwarded For"}},
 		{name: "Client IP header with a colon", args: []string{"-client-ip-header", "X-Real-IP:"}},
+		{name: "Demo setting is text", env: map[string]string{"DEMO_MODE": "on"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -68,6 +69,47 @@ func TestParseConfigRejectsInvalidValues(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The demo must have every limit set and know the client's IP, so a forgotten
+// setting can't leave the public demo unlimited.
+func TestParseConfigDemoMode(t *testing.T) {
+	demo := map[string]string{
+		"DEMO_MODE":              "true",
+		"MAX_USERS":              "25",
+		"MAX_BOOKMARKS_PER_USER": "300",
+		"MAX_TAGS_PER_USER":      "300",
+		"CLIENT_IP_HEADER":       "True-Client-IP",
+	}
+	cfg, err := parseConfig(nil, env(demo))
+	assert.NilError(t, err)
+	assert.Equal(t, cfg.demoMode, true)
+
+	for _, name := range []string{"MAX_USERS", "MAX_BOOKMARKS_PER_USER", "MAX_TAGS_PER_USER", "CLIENT_IP_HEADER"} {
+		t.Run("Without "+name, func(t *testing.T) {
+			values := map[string]string{}
+			for k, v := range demo {
+				values[k] = v
+			}
+			delete(values, name)
+			if name == "MAX_USERS" {
+				values[name] = "0" // unset would be the default of 1
+			}
+			if _, err := parseConfig(nil, env(values)); err == nil {
+				t.Error("expected an error")
+			}
+		})
+	}
+	t.Run("With the flag", func(t *testing.T) {
+		values := map[string]string{}
+		for k, v := range demo {
+			values[k] = v
+		}
+		delete(values, "DEMO_MODE")
+		cfg, err := parseConfig([]string{"-demo"}, env(values))
+		assert.NilError(t, err)
+		assert.Equal(t, cfg.demoMode, true)
+	})
 }
 
 // Every path must keep foreign keys on, including one that looks like a URI.
