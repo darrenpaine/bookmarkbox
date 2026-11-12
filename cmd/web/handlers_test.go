@@ -312,7 +312,7 @@ func TestBookmarkCreate(t *testing.T) {
 			url:       "ftp://example.com",
 			title:     "FTP",
 			wantCode:  http.StatusUnprocessableEntity,
-			wantError: "This must be a full http:// or https:// address",
+			wantError: "Enter a web address, such as bbc.co.uk or https://bbc.co.uk",
 		},
 		{
 			name:      "Empty title",
@@ -342,6 +342,21 @@ func TestBookmarkCreate(t *testing.T) {
 			wantCode:  http.StatusUnprocessableEntity,
 			wantError: "You have already saved this address",
 		},
+		{
+			// Completed to https:// before saving, so it matches.
+			name:      "Duplicate URL typed without https://",
+			url:       "go.dev/doc/effective_go",
+			title:     "Effective Go",
+			wantCode:  http.StatusUnprocessableEntity,
+			wantError: "You have already saved this address",
+		},
+		{
+			name:      "Not an address",
+			url:       "effective go",
+			title:     "Effective Go",
+			wantCode:  http.StatusUnprocessableEntity,
+			wantError: "Enter a web address",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -359,6 +374,14 @@ func TestBookmarkCreate(t *testing.T) {
 			}
 		})
 	}
+
+	// The completed address is what the form shows again.
+	t.Run("Address completed", func(t *testing.T) {
+		form := url.Values{"url": {"https:/bbc.co.uk/news"}, "title": {""}}
+		code, _, body := ts.postForm(t, "/bookmarks/new", form)
+		assert.Equal(t, code, http.StatusUnprocessableEntity)
+		assert.StringContains(t, body, "value='https://bbc.co.uk/news'")
+	})
 }
 
 func TestBookmarkEdit(t *testing.T) {

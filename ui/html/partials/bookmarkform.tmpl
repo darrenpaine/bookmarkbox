@@ -7,7 +7,7 @@
     <div class='field'>
         <label for='url'>Address</label>
         {{with .Form.FieldErrors.url}}<p class='field-error' id='url-error'>{{.}}</p>{{end}}
-        <input id='url' type='url' name='url' value='{{.Form.URL}}' placeholder='https://'{{with .Form.FieldErrors.url}} aria-invalid='true' aria-describedby='url-error'{{end}}>
+        <input id='url' type='text' inputmode='url' autocapitalize='off' spellcheck='false' name='url' value='{{.Form.URL}}'{{with .Form.FieldErrors.url}} aria-invalid='true' aria-describedby='url-error'{{end}}>
     </div>
     <div class='field'>
         <label for='title'>Title</label>

@@ -27,6 +27,7 @@ Based on the 'SnippetBox' project from ["Let's Go" by Alex Edwards](https://lets
 - Tag autocomplete: the tag fields suggest your existing tags as you type, most used first
 - Rate limits on login, signup and password change, with the client IP read from a trusted reverse proxy
 - A [threat model](docs/threat-model.md), `govulncheck` in CI, weekly Dependabot updates, and a [security policy](SECURITY.md)
+- Type an address without `https://`, such as `bbc.co.uk`, and it is completed for you
 
 ### Next steps
 - Live demo on Render, with seeded data that resets regularly
