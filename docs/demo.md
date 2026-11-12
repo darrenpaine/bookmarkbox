@@ -1,6 +1,6 @@
 # Public demo
 
-The demo runs on Render's free tier, from `render.yaml` at the root of the repository. [Design](design.md#public-demo) explains how demo mode works and why; this page covers deploying and checking it.
+The demo runs at [bookmarkbox.onrender.com](https://bookmarkbox.onrender.com) on Render's free tier, from `render.yaml` at the root of the repository. [Design](design.md#public-demo) explains how demo mode works and why; this page covers deploying and checking it.
 
 ## Settings
 
@@ -64,7 +64,11 @@ Rate limits count each visitor by IP address, so the app has to read the right o
    The log should still show your address, not `203.0.113.9`.
 4. A warning that the client IP header is missing or invalid means Render no longer sets it. Then try `CLIENT_IP_HEADER=X-Forwarded-For`, whose last entry the app uses, and repeat the checks.
 
-Last checked: not yet.
+Rate limits refill one attempt every 6 seconds, and each login takes about 1.5 seconds on the free tier, so attempts sent one at a time barely go over. Send them a few at once instead, for example `seq 1 14 | xargs -P 3 -I{} curl …`. The 14th should get a 429.
+
+Last checked on 2026-11-12: `True-Client-IP` held the visitor's address, and fake `True-Client-IP` and `X-Forwarded-For` headers were ignored.
+
+The demo's address is IPv4 only, so a visitor's log entry shows their IPv4 address even if their machine prefers IPv6.
 
 ## Reset by hand
 

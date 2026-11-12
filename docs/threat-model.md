@@ -89,12 +89,13 @@ browser ──HTTPS──► proxy (Caddy, nginx, Render) ──HTTP──► ap
 | Threat | Defence | Status |
 |---|---|---|
 | A flood of logins or signups, each costing a bcrypt hash | The rate limit, per route and client | Mitigated |
+| Bursts of logins from many clients stalling the demo's small CPU | Each client gets 10 hashes a minute. On Render's free tier a hash takes about 1.5 seconds, so a burst of 10 at once takes about 15: past the 10-second write timeout, the slowest get a 502 and other visitors wait. Many clients together could stall it for longer. Limiting how many hashes run at once would keep the rest of the site quick | Accepted |
 | Many clients filling the rate limiter's memory | At most 10,000 clients are tracked; past that, new ones wait | Mitigated |
 | Large or slow requests | Forms are limited to 1 MB and imports to 20 MB. The server's read timeout is 5 seconds, write 10, idle 60 | Mitigated |
 | Filling the disk | Limits on Users, Bookmarks per User and Tags per User, and on every text field. Bookmarks and Tags are unlimited by default when self-hosted, where every User is trusted | Mitigated |
 | Expensive list queries | At most 10 Tag filters, searches of 200 characters, and a cap on search words | Mitigated |
 | The demo deployed with a limit left unlimited, or with every visitor sharing one rate limit | With `DEMO_MODE` on, start-up fails if a limit is `0` or `CLIENT_IP_HEADER` is unset | Mitigated |
-| Render passing on a client's own `True-Client-IP`, so visitors can dodge the demo's rate limit | Checked after deploying, by sending a fake header ([demo](demo.md#check-the-client-ip)) | Open |
+| Render passing on a client's own `True-Client-IP`, so visitors can dodge the demo's rate limit | Render replaces it. Checked on 2026-11-12 by sending fake `True-Client-IP` and `X-Forwarded-For` headers: the log showed the real address, and the limit still applied ([demo](demo.md#check-the-client-ip)) | Mitigated |
 | A self-hoster turns on `DEMO_MODE` and loses their data | Off by default, and [self-hosting](self-hosting.md#settings) says to leave it unset | Mitigated |
 | Bots taking all 25 demo signups | The Demo login still works, and the data resets every day. A full demo's signup page says so and shows the Demo login | Accepted |
 
