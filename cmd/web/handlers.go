@@ -734,8 +734,20 @@ func (app *application) userAccountView(w http.ResponseWriter, r *http.Request) 
 	app.render(w, http.StatusOK, "account.tmpl", data)
 }
 
+// demoPasswordFixed refuses a password change for the shared Demo User.
+func (app *application) demoPasswordFixed(w http.ResponseWriter, r *http.Request) bool {
+	if !app.isDemoUser(r) {
+		return false
+	}
+	app.render(w, http.StatusForbidden, "demopassword.tmpl", app.newTemplateData(r))
+	return true
+}
+
 // Change password form
 func (app *application) userPasswordShowForm(w http.ResponseWriter, r *http.Request) {
+	if app.demoPasswordFixed(w, r) {
+		return
+	}
 	userID := app.authenticatedUserID(r)
 	user, err := app.users.Get(userID)
 	if err != nil {
@@ -755,6 +767,9 @@ func (app *application) userPasswordShowForm(w http.ResponseWriter, r *http.Requ
 
 // Do the password update - POST /account/password/update
 func (app *application) userPasswordPost(w http.ResponseWriter, r *http.Request) {
+	if app.demoPasswordFixed(w, r) {
+		return
+	}
 	var form userChangePasswordForm
 	err := app.decodePostForm(w, r, &form)
 	if err != nil {

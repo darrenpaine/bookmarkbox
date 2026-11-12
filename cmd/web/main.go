@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/darrenpaine/bookmarkbox/internal/demo"
 	"github.com/darrenpaine/bookmarkbox/internal/models"
 	"github.com/darrenpaine/bookmarkbox/internal/ratelimit"
 	"github.com/darrenpaine/bookmarkbox/migrations"
@@ -39,6 +40,11 @@ type application struct {
 	formDecoder    *form.Decoder
 	sessionManager *scs.SessionManager
 	debug          bool
+
+	// demoMode runs the public demo. demoUserID is the Demo User's ID,
+	// which can change at each reset.
+	demoMode   bool
+	demoUserID atomic.Int64
 
 	attempts             attemptLimiter
 	clientIPHeader       string
@@ -89,9 +95,10 @@ func run(cfg config, logger *slog.Logger) error {
 	sessionManager.Cookie.Secure = cfg.cookieSecure
 	sessionManager.Cookie.SameSite = http.SameSiteStrictMode
 
+	bookmarks := &models.BookmarkModel{DB: db, MaxBookmarks: cfg.maxBookmarks, MaxTags: cfg.maxTags}
 	app := &application{
 		logger:         logger,
-		bookmarks:      &models.BookmarkModel{DB: db, MaxBookmarks: cfg.maxBookmarks, MaxTags: cfg.maxTags},
+		bookmarks:      bookmarks,
 		imports:        &models.ImportModel{DB: db},
 		tags:           &models.TagModel{DB: db},
 		users:          &models.UserModel{DB: db, MaxUsers: cfg.maxUsers},
@@ -102,6 +109,16 @@ func run(cfg config, logger *slog.Logger) error {
 		debug:          cfg.debug,
 		attempts:       ratelimit.New(attemptsPerMinute, attemptsBurst, attemptsMaxKeys),
 		clientIPHeader: cfg.clientIPHeader,
+		demoMode:       cfg.demoMode,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if cfg.demoMode {
+		if err := app.resetDemo(ctx, db, bookmarks); err != nil {
+			return err
+		}
+		go app.resetDemoEvery(ctx, demo.Every, db, bookmarks)
 	}
 
 	protection := http.NewCrossOriginProtection()
@@ -124,10 +141,37 @@ func run(cfg config, logger *slog.Logger) error {
 		return err
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	logger.Info("starting server", "addr", cfg.addr)
 	return serve(ctx, srv, listener, logger)
+}
+
+// resetDemo deletes everything and recreates the Demo User with its seed
+// Bookmarks. Everyone logged in, the Demo User included, is logged out.
+func (app *application) resetDemo(ctx context.Context, db *sql.DB, bookmarks *models.BookmarkModel) error {
+	id, err := demo.Reset(ctx, db, bookmarks, time.Now().UTC())
+	if err != nil {
+		return fmt.Errorf("demo reset: %w", err)
+	}
+	app.demoUserID.Store(int64(id))
+	app.logger.Info("demo data reset", "next", time.Now().Add(demo.Every).UTC().Format(time.RFC3339))
+	return nil
+}
+
+// resetDemoEvery resets the demo at each interval until ctx is cancelled. A
+// failed reset is logged, and the next one tried as usual.
+func (app *application) resetDemoEvery(ctx context.Context, every time.Duration, db *sql.DB, bookmarks *models.BookmarkModel) {
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := app.resetDemo(ctx, db, bookmarks); err != nil {
+				app.logger.Error(err.Error())
+			}
+		}
+	}
 }
 
 // serve runs srv until ctx is cancelled, then lets requests in progress finish.

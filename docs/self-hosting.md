@@ -29,6 +29,8 @@ Settings go in `.env`, and `.env.example` lists them all.
 | `HOST_PORT` | `4000` | Published port on the host |
 | `BIND_ADDRESS` | `127.0.0.1` | Host address the port is published on |
 
+Leave `DEMO_MODE` unset. It runs the public demo, which deletes every account and bookmark at start-up and every day.
+
 An invalid value stops the app at start-up, and `docker compose logs bookmarkbox` shows why. After changing `.env`, run `docker compose up -d`.
 
 ## Home network

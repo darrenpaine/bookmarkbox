@@ -22,6 +22,19 @@ func secureHeaders(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+
+// hsts tells browsers to use only HTTPS for this site for a year, so even a
+// first visit typed without https:// can't be intercepted. Only the demo
+// sends it: a self-hoster on plain HTTP would be locked out, so they set it
+// at their proxy. It leaves out includeSubDomains, which would cover every
+// other site on the host's domain.
+func hsts(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Strict-Transport-Security", "max-age=31536000")
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (app *application) logRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Health checks call /ping every few seconds, which would flood the log.

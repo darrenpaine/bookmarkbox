@@ -36,6 +36,14 @@ type templateData struct {
 	TagSuggestions  []*models.Tag  // the User's Tags, most used first, for Tag autocomplete
 	BookmarkCount   int            // the User's Bookmarks, on the Account page
 	Import          *importPreview // an uploaded file waiting to be imported
+	Demo            *demoData      // set only in demo mode
+}
+
+// demoData is what the demo's pages show: the Demo User's login, and whether
+// the viewer is that shared User.
+type demoData struct {
+	Email, Password string
+	IsDemoUser      bool
 }
 
 // humanDate() gives a nice time/date format - UTC, or blank for unset time.

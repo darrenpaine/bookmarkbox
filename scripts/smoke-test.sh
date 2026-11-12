@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Tests the real image with Docker Compose: start-up, health check, non-root
 # user, saving data, clean shutdown, and the documented backup and restore.
+# Then demo mode, in a container with no volume, as on Render's free tier.
 # Uses its own project and volume, so an existing install isn't touched.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -13,6 +14,7 @@ export COMPOSE_PROJECT_NAME=bookmarkbox-smoke
 export HOST_PORT=14000
 url="http://127.0.0.1:$HOST_PORT"
 
+demo="$COMPOSE_PROJECT_NAME-demo"
 workdir=$(mktemp -d -p .)
 chmod 755 "$workdir" # the restore reads from here as the container's user
 
@@ -21,6 +23,7 @@ cleanup() {
     if [ "$status" -ne 0 ]; then
         docker compose logs --no-color || true
     fi
+    docker rm -f "$demo" >/dev/null 2>&1 || true
     docker compose down -v --remove-orphans || true
     rm -rf "$workdir"
     exit "$status"
@@ -90,5 +93,32 @@ docker compose up -d --wait
 expect "restored user" "$(sql 'SELECT email FROM users')" "smoke@example.com"
 sql "UPDATE users SET name = 'Restored'"
 expect "restored database is writable" "$(sql 'SELECT name FROM users')" "Restored"
+
+# Demo mode, with no volume: /data must be writable as the image's own
+# directory, and the reset must seed the Demo User at start-up.
+demo_url="http://127.0.0.1:14001"
+docker run -d --name "$demo" -p 127.0.0.1:14001:4000 \
+    -e DEMO_MODE=true -e MAX_USERS=25 -e MAX_BOOKMARKS_PER_USER=300 -e MAX_TAGS_PER_USER=300 \
+    -e CLIENT_IP_HEADER=X-Forwarded-For -e COOKIE_SECURE=false \
+    "$COMPOSE_PROJECT_NAME-bookmarkbox" >/dev/null
+for _ in $(seq 30); do
+    curl -fsS "$demo_url/ping" >/dev/null 2>&1 && break
+    sleep 1
+done
+expect "demo starts without a volume" "$(curl -sS "$demo_url/ping")" "OK"
+expect "demo sends HSTS" \
+    "$(curl -sSI "$demo_url/" | tr -d '\r' | grep -i '^strict-transport-security:' | cut -d' ' -f2)" "max-age=31536000"
+demo_sql() {
+    docker exec "$demo" sqlite3 /data/bookmarkbox.db "$1"
+}
+expect "demo has only the Demo User" "$(demo_sql 'SELECT email FROM users')" "demo@example.com"
+seeded=$(demo_sql 'SELECT count(*) FROM bookmarks')
+if [ "$seeded" -lt 150 ]; then
+    fail "demo seeded $seeded bookmarks"
+fi
+echo "ok: demo seeded $seeded bookmarks"
+status=$(curl -sS -o /dev/null -w '%{http_code}' \
+    -d 'email=demo@example.com&password=demo-password-1' "$demo_url/user/login")
+expect "demo login" "$status" "303"
 
 echo "All smoke tests passed"

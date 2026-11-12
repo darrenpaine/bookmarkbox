@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -21,6 +22,9 @@ type config struct {
 	// clientIPHeader names the header a proxy puts the client's IP address
 	// in. Empty means there's no proxy, so the connection's address is used.
 	clientIPHeader string
+	// demoMode runs the public demo: everything is deleted at start-up and
+	// every day, and the Demo User is recreated with its seed Bookmarks.
+	demoMode bool
 }
 
 // parseConfig reads the settings. An invalid value is an error rather than
@@ -52,6 +56,10 @@ func parseConfig(args []string, getenv func(string) string) (config, error) {
 	}
 
 	clientIPHeader := getenv("CLIENT_IP_HEADER")
+	demoMode, err := envBool(getenv, "DEMO_MODE", false)
+	if err != nil {
+		return config{}, err
+	}
 
 	var cfg config
 	fs := flag.NewFlagSet("bookmarkbox", flag.ContinueOnError)
@@ -63,6 +71,7 @@ func parseConfig(args []string, getenv func(string) string) (config, error) {
 	fs.IntVar(&cfg.maxBookmarks, "max-bookmarks", maxBookmarks, "Maximum bookmarks per user (0 for unlimited)")
 	fs.IntVar(&cfg.maxTags, "max-tags", maxTags, "Maximum tags per user (0 for unlimited)")
 	fs.StringVar(&cfg.clientIPHeader, "client-ip-header", clientIPHeader, "Header holding the client IP set by a trusted proxy, such as X-Forwarded-For")
+	fs.BoolVar(&cfg.demoMode, "demo", demoMode, "Run the public demo, which deletes all data at start-up and every day")
 	if err := fs.Parse(args); err != nil {
 		return config{}, err
 	}
@@ -84,6 +93,14 @@ func parseConfig(args []string, getenv func(string) string) (config, error) {
 		if limit.value < 0 {
 			return config{}, fmt.Errorf("%s must be 0 or more", limit.flag)
 		}
+		// The demo is open to anyone, so every limit must be set.
+		if cfg.demoMode && limit.value == 0 {
+			return config{}, fmt.Errorf("demo mode needs a limit: %s is 0 (unlimited)", limit.flag)
+		}
+	}
+	// Behind a proxy, every visitor would otherwise share one rate limit.
+	if cfg.demoMode && cfg.clientIPHeader == "" {
+		return config{}, errors.New("demo mode needs CLIENT_IP_HEADER, the header the proxy puts the client's IP address in")
 	}
 	return cfg, nil
 }
